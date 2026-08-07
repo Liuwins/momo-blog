@@ -55,6 +55,11 @@ request.interceptors.response.use(
       return res
     }
 
+    // 数组直接放行（标签列表等）
+    if (Array.isArray(res)) {
+      return res
+    }
+
     // 后端直接返回数据对象（无包装）
     if (res && typeof res === 'object') {
       // 以下字段视为有效响应，直接放行
@@ -65,18 +70,20 @@ request.interceptors.response.use(
     }
 
     // 兼容旧格式
-    if (res.code === 200) {
+    if (res && res.code === 200) {
       return res.data
     }
-    if (res.code === 401) {
+    if (res && res.code === 401) {
       localStorage.removeItem('token')
       // 带上当前页面路径，登录后跳回
       router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       toast('fail', '登录已过期，请重新登录')
+    } else if (res && res.message) {
+      toast('fail', res.message)
     } else {
-      toast('fail', res.message || '请求失败')
+      toast('fail', '请求失败')
     }
-    return Promise.reject(new Error(res.message || 'Request Error'))
+    return Promise.reject(new Error(res?.message || 'Request Error'))
   },
   (error) => {
     if (error.response?.status === 401) {

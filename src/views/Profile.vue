@@ -71,12 +71,20 @@
           <van-cell-group inset>
             <div class="avatar-edit-row">
               <span class="avatar-edit-label">头像</span>
-              <van-image round width="48" height="48" :src="editForm.avatar || profile.avatar" />
-              <van-field
-                v-model="editForm.avatar"
-                placeholder="粘贴图片 URL"
-                class="avatar-edit-input"
-              />
+              <van-uploader
+                v-model="avatarFile"
+                :max-count="1"
+                :max-size="5 * 1024 * 1024"
+                :before-read="beforeAvatarRead"
+                :after-read="afterAvatarRead"
+                preview-size="48"
+                :preview-image="true"
+                :deletable="false"
+                accept="image/*"
+              >
+                <van-image round width="48" height="48" :src="editForm.avatar || profile.avatar" />
+                <div class="avatar-upload-hint">点击更换</div>
+              </van-uploader>
             </div>
             <van-field
               v-model="editForm.nickname"
@@ -110,6 +118,8 @@ import { showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { getUserInfo, getMe, updateUserInfo } from '@/api/user'
 import { getUserPosts } from '@/api/post'
+import { uploadImages } from '@/api/upload'
+import { compressImage } from '@/utils/compress'
 
 const route = useRoute()
 const router = useRouter()
@@ -133,6 +143,7 @@ const postPage = ref(1)
 
 const showEdit = ref(false)
 const editForm = ref({ nickname: '', signature: '', avatar: '' })
+const avatarFile = ref([])
 
 const isOwner = computed(() => {
   return userStore.userInfo?.id === profile.value.id
@@ -221,22 +232,45 @@ async function onRefresh() {
   await onLoad()
 }
 
+function beforeAvatarRead(file) {
+  if (file.size > 5 * 1024 * 1024) {
+    showToast({ type: 'fail', message: '图片不能超过5MB' })
+    return false
+  }
+  return true
+}
+
+async function afterAvatarRead(file) {
+  try {
+    const compressed = await compressImage(file.file, 400, 5 * 1024 * 1024)
+    const res = await uploadImages([compressed])
+    if (res.urls && res.urls.length > 0) {
+      editForm.value.avatar = res.urls[0]
+      showToast({ type: 'success', message: '头像已上传' })
+    } else {
+      showToast({ type: 'fail', message: '上传失败' })
+    }
+  } catch (e) {
+    showToast({ type: 'fail', message: '头像上传失败' })
+  }
+}
+
 async function handleEdit() {
   try {
     const payload = {
       nickname: editForm.value.nickname,
       signature: editForm.value.signature
     }
-    if (editForm.value.avatar) {
-      payload.avatar = editForm.value.avatar
+    if (editForm.value.avatar && editForm.value.avatar.trim()) {
+      payload.avatar = editForm.value.avatar.trim()
     }
     await updateUserInfo(payload)
     profile.value.nickname = editForm.value.nickname
     profile.value.signature = editForm.value.signature
-    if (editForm.value.avatar) {
-      profile.value.avatar = editForm.value.avatar
+    if (editForm.value.avatar && editForm.value.avatar.trim()) {
+      profile.value.avatar = editForm.value.avatar.trim()
     }
-    userStore.setUserInfo({ ...userStore.userInfo, ...editForm.value })
+    userStore.setUserInfo({ ...userStore.userInfo, ...payload })
     showEdit.value = false
     showToast({ type: 'success', message: '保存成功' })
   } catch (e) {
@@ -344,15 +378,14 @@ function handleComment(_post) {
   width: 56px;
   font-size: 14px;
   color: #333;
+  flex-shrink: 0;
 }
 
-.avatar-edit-input {
-  flex: 1;
-  padding: 0;
-}
-
-.avatar-edit-input :deep(.van-field__control) {
+.avatar-upload-hint {
   font-size: 12px;
+  color: #576b95;
+  text-align: center;
+  margin-top: 4px;
 }
 
 .avatar-wrapper {

@@ -41,8 +41,22 @@
 
       <!-- 标签选择 -->
       <div class="tags-section">
-        <div class="tags-label">标签</div>
-        <div class="tags-wrap">
+        <div class="tags-label">标签 <span class="tags-hint">（选填，最多5个）</span></div>
+        <div v-if="selectedTags.length" class="selected-tags">
+          <van-tag
+            v-for="tag in selectedTags"
+            :key="tag"
+            closeable
+            type="primary"
+            round
+            size="medium"
+            class="tag-item"
+            @close="toggleTag(tag)"
+          >
+            {{ tag }}
+          </van-tag>
+        </div>
+        <div v-if="existingTags.length" class="tags-wrap">
           <van-tag
             v-for="tag in existingTags"
             :key="tag.name"
@@ -56,33 +70,17 @@
             {{ tag.name }}
           </van-tag>
         </div>
-        <!-- 自定义标签输入 -->
         <div class="custom-tag-input">
           <van-field
             v-model="customTag"
-            placeholder="输入自定义标签，回车添加"
+            placeholder="输入标签文字，按回车或点添加"
             maxlength="10"
-            @keypress.enter="addCustomTag"
+            @keypress.enter.prevent="addCustomTag"
           >
             <template #button>
-              <van-button size="small" plain @click="addCustomTag">添加</van-button>
+              <van-button size="small" plain type="primary" @click="addCustomTag">添加</van-button>
             </template>
           </van-field>
-        </div>
-        <div v-if="selectedTags.length" class="selected-tags">
-          <span class="selected-label">已选：</span>
-          <van-tag
-            v-for="tag in selectedTags"
-            :key="tag"
-            closeable
-            type="primary"
-            round
-            size="medium"
-            class="tag-item"
-            @close="toggleTag(tag)"
-          >
-            {{ tag }}
-          </van-tag>
         </div>
       </div>
     </div>
@@ -127,10 +125,10 @@ onMounted(async () => {
   if (isEdit.value) {
     try {
       const res = await getPostDetail(postId.value)
-      content.value = res.post.content || ''
-      const imgs = res.post.images || []
+      content.value = res.content || ''
+      const imgs = res.images || []
       fileList.value = imgs.map((url) => ({ url, status: 'done', serverUrl: url, isImage: true }))
-      selectedTags.value = res.post.tags || []
+      selectedTags.value = res.tags || []
     } catch (e) {
       showToast({ type: 'fail', message: '加载失败' })
     }
@@ -210,6 +208,10 @@ async function handlePublish() {
   if (!canPublish.value || uploading.value) return
   uploading.value = true
   try {
+    // 如果输入框有未添加的标签，自动加入
+    if (customTag.value.trim()) {
+      addCustomTag()
+    }
     // 收集已上传的图片 URL（编辑时新旧合并）
     const images = fileList.value
       .filter((item) => item.status === 'done' && item.serverUrl)
@@ -276,6 +278,22 @@ async function handlePublish() {
   font-weight: 500;
   color: #333;
   margin-bottom: 10px;
+}
+
+.tags-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: #999;
+}
+
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: #f0f4fa;
+  border-radius: 8px;
 }
 
 .tags-wrap {

@@ -84,7 +84,7 @@ const currentUserId = computed(() => userStore.userInfo?.id || 0)
 onMounted(async () => {
   try {
     const res = await getPostDetail(route.params.id)
-    post.value = res.post
+    post.value = res
   } catch (e) {
     showToast({ type: 'fail', message: '加载失败' })
   }

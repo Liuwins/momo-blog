@@ -5,6 +5,7 @@
 <script setup>
 import { computed } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const props = defineProps({
   content: { type: String, default: '' }
@@ -19,8 +20,12 @@ marked.setOptions({
 const rendered = computed(() => {
   if (!props.content) return ''
   const html = marked.parse(props.content)
+  // XSS 过滤：清理危险标签/事件处理器
+  const clean = DOMPurify.sanitize(html, {
+    ADD_ATTR: ['target'], // 允许 target="_blank"
+  })
   // 链接加 target=_blank（安全）
-  return html.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
+  return clean.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
 })
 </script>
 

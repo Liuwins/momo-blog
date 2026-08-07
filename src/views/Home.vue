@@ -139,8 +139,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useFeedStore } from '@/stores/feed'
 import { useUserStore } from '@/stores/user'
 import { showToast } from 'vant'
@@ -148,6 +148,7 @@ import { getPosts, getTags } from '@/api/post'
 import { createComment, deleteComment } from '@/api/comment'
 
 const router = useRouter()
+const route = useRoute()
 const store = useFeedStore()
 const userStore = useUserStore()
 
@@ -160,6 +161,7 @@ const keyword = ref('')
 const sortBy = ref('latest')
 const allTags = ref([])
 const activeTag = ref('')
+const searching = ref(false) // 搜索中 loading 态
 
 const showCommentPopup = ref(false)
 const commentText = ref('')
@@ -167,6 +169,23 @@ const currentPost = ref(null)
 const currentComments = ref([])
 const replyTo = ref(null)
 const commentBodyRef = ref(null)
+
+// 搜索防抖
+let searchTimer = null
+function onSearch() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    list.value = []
+    store.page = 1
+    finished.value = false
+    error.value = false
+    loading.value = false
+    searching.value = true
+    onLoad().finally(() => {
+      searching.value = false
+    })
+  }, 300)
+}
 
 async function onLoad() {
   loading.value = true
@@ -198,7 +217,17 @@ async function loadTags() {
     allTags.value = await getTags()
   } catch (e) { /* 忽略 */ }
 }
-loadTags()
+
+// 每次进入首页：重置状态，从头加载
+onMounted(() => {
+  list.value = []
+  store.page = 1
+  finished.value = false
+  error.value = false
+  loading.value = false
+  loadTags()
+  // van-list 检测到 loading=false + finished=false 会自动触发 onLoad
+})
 
 async function onRefresh() {
   list.value = []
@@ -209,15 +238,6 @@ async function onRefresh() {
   refreshing.value = false
   await loadTags()
   await onLoad()
-}
-
-function onSearch() {
-  list.value = []
-  store.page = 1
-  finished.value = false
-  error.value = false
-  loading.value = false
-  onLoad()
 }
 
 function changeSort(sort) {
