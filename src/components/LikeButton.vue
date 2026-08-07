@@ -12,7 +12,8 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { useLike } from '@/composables/useLike'
+import { showToast } from 'vant'
+import { toggleLike } from '@/api/post'
 
 const props = defineProps({
   postId: { type: Number, required: true },
@@ -25,18 +26,17 @@ const emit = defineEmits(['update:liked', 'update:count'])
 const label = computed(() => props.count > 0 ? `${props.count}` : '赞')
 const animating = ref(false)
 
-const { handleToggle: toggleLike } = useLike()
-
 async function handleClick() {
-  const likedRef = { value: props.liked }
-  const countRef = { value: props.count }
-  const willLike = !props.liked
-  await toggleLike(props.postId, likedRef, countRef)
-  emit('update:liked', likedRef.value)
-  emit('update:count', countRef.value)
-  if (willLike) {
-    animating.value = true
-    setTimeout(() => { animating.value = false }, 400)
+  try {
+    const res = await toggleLike(props.postId)
+    emit('update:liked', res.liked)
+    emit('update:count', props.count + (res.liked ? 1 : -1))
+    if (res.liked) {
+      animating.value = true
+      setTimeout(() => { animating.value = false }, 400)
+    }
+  } catch (e) {
+    showToast({ type: 'fail', message: '操作失败' })
   }
 }
 </script>

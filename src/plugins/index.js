@@ -1,7 +1,6 @@
 import { showToast, showConfirmDialog, showSuccessToast, showFailToast } from 'vant'
 import 'vant/es/toast/style'
 import 'vant/es/dialog/style'
-import { installErrorHandler } from './error-handler'
 
 export const toast = {
   success: (message) => showSuccessToast(message),
@@ -16,5 +15,4 @@ export const dialog = {
 export function installPlugins(app) {
   app.config.globalProperties.$toast = toast
   app.config.globalProperties.$dialog = dialog
-  installErrorHandler(app)
 }

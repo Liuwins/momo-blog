@@ -139,9 +139,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useFeedStore } from '@/stores/feed'
 import { useUserStore } from '@/stores/user'
 import { showToast } from 'vant'
 import { getPosts, getTags } from '@/api/post'
@@ -161,7 +160,9 @@ const keyword = ref('')
 const sortBy = ref('latest')
 const allTags = ref([])
 const activeTag = ref('')
-const searching = ref(false) // 搜索中 loading 态
+const searching = ref(false)
+const page = ref(1)
+const pageSize = 10
 
 const showCommentPopup = ref(false)
 const commentText = ref('')
@@ -176,7 +177,7 @@ function onSearch() {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
     list.value = []
-    store.page = 1
+    page.value = 1
     finished.value = false
     error.value = false
     loading.value = false
@@ -190,11 +191,11 @@ function onSearch() {
 async function onLoad() {
   loading.value = true
   try {
-    const params = { page: store.page, pageSize: store.pageSize }
+    const params = { page: page.value, pageSize: pageSize }
     if (keyword.value.trim()) params.keyword = keyword.value.trim()
     if (activeTag.value) params.tag = activeTag.value
     const res = await getPosts(params)
-    if (res.list.length < store.pageSize) {
+    if (res.list.length < pageSize) {
       finished.value = true
     }
     let newItems = res.list
@@ -202,7 +203,7 @@ async function onLoad() {
       newItems = [...newItems].sort((a, b) => b.likeCount - a.likeCount)
     }
     list.value.push(...newItems)
-    store.page++
+    page.value++
   } catch (e) {
     error.value = true
     showToast({ type: 'fail', message: '加载失败' })
@@ -221,17 +222,16 @@ async function loadTags() {
 // 每次进入首页：重置状态，从头加载
 onMounted(() => {
   list.value = []
-  store.page = 1
+  page.value = 1
   finished.value = false
   error.value = false
   loading.value = false
   loadTags()
-  // van-list 检测到 loading=false + finished=false 会自动触发 onLoad
 })
 
 async function onRefresh() {
   list.value = []
-  store.page = 1
+  page.value = 1
   finished.value = false
   error.value = false
   loading.value = false
@@ -244,7 +244,7 @@ function changeSort(sort) {
   if (sortBy.value === sort) return
   sortBy.value = sort
   list.value = []
-  store.page = 1
+  page.value = 1
   finished.value = false
   error.value = false
   loading.value = false
@@ -254,7 +254,7 @@ function changeSort(sort) {
 function filterByTag(tag) {
   activeTag.value = tag
   list.value = []
-  store.page = 1
+  page.value = 1
   finished.value = false
   error.value = false
   loading.value = false
