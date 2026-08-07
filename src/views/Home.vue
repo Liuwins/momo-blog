@@ -26,6 +26,23 @@
           @click="changeSort('hot')"
         >最热</span>
       </div>
+      <!-- 标签筛选 -->
+      <div v-if="allTags.length" class="tag-filter">
+        <span
+          class="tag-filter-item"
+          :class="{ active: !activeTag }"
+          @click="filterByTag('')"
+        >全部</span>
+        <span
+          v-for="tag in allTags"
+          :key="tag.name"
+          class="tag-filter-item"
+          :class="{ active: activeTag === tag.name }"
+          @click="filterByTag(tag.name)"
+        >
+          #{{ tag.name }}<sup v-if="tag.count > 1">{{ tag.count }}</sup>
+        </span>
+      </div>
     </div>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
@@ -49,6 +66,7 @@
             @update:liked="updatePostLike(item.id, 'liked', $event)"
             @update:count="updatePostLike(item.id, 'likeCount', $event)"
             @deleted="handleDeleted"
+            @tag-click="handleTagClick"
           />
         </template>
         <template v-else-if="loading">
@@ -126,7 +144,7 @@ import { useRouter } from 'vue-router'
 import { useFeedStore } from '@/stores/feed'
 import { useUserStore } from '@/stores/user'
 import { showToast } from 'vant'
-import { getPosts } from '@/api/post'
+import { getPosts, getTags } from '@/api/post'
 import { createComment, deleteComment } from '@/api/comment'
 
 const router = useRouter()
@@ -140,6 +158,8 @@ const error = ref(false)
 const list = ref([])
 const keyword = ref('')
 const sortBy = ref('latest')
+const allTags = ref([])
+const activeTag = ref('')
 
 const showCommentPopup = ref(false)
 const commentText = ref('')
@@ -153,6 +173,7 @@ async function onLoad() {
   try {
     const params = { page: store.page, pageSize: store.pageSize }
     if (keyword.value.trim()) params.keyword = keyword.value.trim()
+    if (activeTag.value) params.tag = activeTag.value
     const res = await getPosts(params)
     if (res.list.length < store.pageSize) {
       finished.value = true
@@ -171,6 +192,14 @@ async function onLoad() {
   }
 }
 
+// 加载标签列表
+async function loadTags() {
+  try {
+    allTags.value = await getTags()
+  } catch (e) { /* 忽略 */ }
+}
+loadTags()
+
 async function onRefresh() {
   list.value = []
   store.page = 1
@@ -178,6 +207,7 @@ async function onRefresh() {
   error.value = false
   loading.value = false
   refreshing.value = false
+  await loadTags()
   await onLoad()
 }
 
@@ -199,6 +229,20 @@ function changeSort(sort) {
   error.value = false
   loading.value = false
   onLoad()
+}
+
+function filterByTag(tag) {
+  activeTag.value = tag
+  list.value = []
+  store.page = 1
+  finished.value = false
+  error.value = false
+  loading.value = false
+  onLoad()
+}
+
+function handleTagClick(tag) {
+  filterByTag(tag)
 }
 
 function goPublish() {
@@ -312,6 +356,41 @@ async function submitComment() {
 .sort-tab.active {
   color: #07C160;
   font-weight: 500;
+}
+
+.tag-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tag-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.tag-filter-item {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #576b95;
+  background: #f0f4fa;
+  padding: 4px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tag-filter-item.active {
+  background: #576b95;
+  color: #fff;
+}
+
+.tag-filter-item sup {
+  font-size: 10px;
+  margin-left: 2px;
 }
 
 .nav-icon {

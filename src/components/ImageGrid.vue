@@ -7,7 +7,7 @@
       @click="handlePreview(index)"
     >
       <van-image
-        :src="img"
+        :src="getThumbUrl(img)"
         :style="itemStyle(index)"
         fit="cover"
         lazy-load
@@ -27,6 +27,34 @@ const props = defineProps({
 
 const count = computed(() => Math.min(props.images.length, 9))
 
+// 智能获取缩略图 URL
+// 新格式：/images/<hash>/orig.webp -> /images/<hash>/thumb.webp
+// 旧格式：/images/xxx.webp -> 原样返回（无多尺寸）
+function getThumbUrl(url) {
+  if (!url) return ''
+  // 匹配 /images/<hash>/orig.<ext>
+  const match = url.match(/^(\/images\/[^/]+\/)orig\.(webp|gif)$/)
+  if (match) {
+    return `${match[1]}thumb.${match[2] === 'gif' ? 'gif' : 'webp'}`
+  }
+  return url
+}
+
+// 原图 URL（预览用）
+function getOrigUrl(url) {
+  return url // images 数组里存的就是原图 URL
+}
+
+// 中图 URL（详情页用）
+function getMidUrl(url) {
+  if (!url) return ''
+  const match = url.match(/^(\/images\/[^/]+\/)orig\.(webp|gif)$/)
+  if (match) {
+    return `${match[1]}mid.${match[2] === 'gif' ? 'gif' : 'webp'}`
+  }
+  return url
+}
+
 function itemStyle(_index) {
   if (props.images.length === 1) {
     return { width: '100%', maxWidth: '280px', height: 'auto', aspectRatio: '1' }
@@ -35,8 +63,9 @@ function itemStyle(_index) {
 }
 
 function handlePreview(index) {
+  // 预览用原图
   showImagePreview({
-    images: props.images,
+    images: props.images.map(getOrigUrl),
     startPosition: index,
     closeable: true
   })

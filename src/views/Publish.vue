@@ -36,7 +36,54 @@
           preview-size="80px"
           multiple
         />
-        <div class="upload-tip">最多9张，单张不超过5MB</div>
+        <div class="upload-tip">最多9张，单张不超过5MB（自动压缩为多尺寸）</div>
+      </div>
+
+      <!-- 标签选择 -->
+      <div class="tags-section">
+        <div class="tags-label">标签</div>
+        <div class="tags-wrap">
+          <van-tag
+            v-for="tag in existingTags"
+            :key="tag.name"
+            :type="selectedTags.includes(tag.name) ? 'primary' : 'default'"
+            round
+            plain
+            size="medium"
+            class="tag-item"
+            @click="toggleTag(tag.name)"
+          >
+            {{ tag.name }}
+          </van-tag>
+        </div>
+        <!-- 自定义标签输入 -->
+        <div class="custom-tag-input">
+          <van-field
+            v-model="customTag"
+            placeholder="输入自定义标签，回车添加"
+            maxlength="10"
+            @keypress.enter="addCustomTag"
+          >
+            <template #button>
+              <van-button size="small" plain @click="addCustomTag">添加</van-button>
+            </template>
+          </van-field>
+        </div>
+        <div v-if="selectedTags.length" class="selected-tags">
+          <span class="selected-label">已选：</span>
+          <van-tag
+            v-for="tag in selectedTags"
+            :key="tag"
+            closeable
+            type="primary"
+            round
+            size="medium"
+            class="tag-item"
+            @close="toggleTag(tag)"
+          >
+            {{ tag }}
+          </van-tag>
+        </div>
       </div>
     </div>
   </div>
@@ -46,7 +93,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
-import { createPost, getPostDetail, updatePost } from '@/api/post'
+import { createPost, getPostDetail, updatePost, getTags } from '@/api/post'
 import { uploadImages } from '@/api/upload'
 import { compressImage } from '@/utils/compress'
 
@@ -56,6 +103,9 @@ const content = ref('')
 const fileList = ref([])
 const fieldRef = ref(null)
 const uploading = ref(false)
+const selectedTags = ref([])
+const customTag = ref('')
+const existingTags = ref([])
 
 const isEdit = computed(() => !!route.query.edit)
 const postId = computed(() => Number(route.query.edit))
@@ -67,6 +117,12 @@ onMounted(async () => {
     fieldRef.value?.focus()
   }, 300)
 
+  // 加载已有标签
+  try {
+    const tags = await getTags()
+    existingTags.value = tags || []
+  } catch (e) { /* 忽略 */ }
+
   // 编辑模式：加载旧内容
   if (isEdit.value) {
     try {
@@ -74,11 +130,44 @@ onMounted(async () => {
       content.value = res.post.content || ''
       const imgs = res.post.images || []
       fileList.value = imgs.map((url) => ({ url, status: 'done', serverUrl: url, isImage: true }))
+      selectedTags.value = res.post.tags || []
     } catch (e) {
       showToast({ type: 'fail', message: '加载失败' })
     }
   }
 })
+
+function toggleTag(tag) {
+  const idx = selectedTags.value.indexOf(tag)
+  if (idx !== -1) {
+    selectedTags.value.splice(idx, 1)
+  } else {
+    if (selectedTags.value.length >= 5) {
+      showToast({ type: 'warning', message: '最多选 5 个标签' })
+      return
+    }
+    selectedTags.value.push(tag)
+  }
+}
+
+function addCustomTag() {
+  const tag = customTag.value.trim()
+  if (!tag) return
+  if (selectedTags.value.includes(tag)) {
+    showToast({ type: 'warning', message: '标签已存在' })
+    return
+  }
+  if (selectedTags.value.length >= 5) {
+    showToast({ type: 'warning', message: '最多选 5 个标签' })
+    return
+  }
+  selectedTags.value.push(tag)
+  // 如果已有标签列表里没有，加进去
+  if (!existingTags.value.find((t) => t.name === tag)) {
+    existingTags.value.push({ name: tag, count: 0 })
+  }
+  customTag.value = ''
+}
 
 function beforeRead(file) {
   if (file.size > 5 * 1024 * 1024) {
@@ -126,11 +215,17 @@ async function handlePublish() {
       .filter((item) => item.status === 'done' && item.serverUrl)
       .map((item) => item.serverUrl)
 
+    const payload = {
+      content: content.value,
+      images,
+      tags: selectedTags.value,
+    }
+
     if (isEdit.value) {
-      await updatePost(postId.value, { content: content.value, images })
+      await updatePost(postId.value, payload)
       showToast({ type: 'success', message: '保存成功' })
     } else {
-      await createPost({ content: content.value, images })
+      await createPost(payload)
       showToast({ type: 'success', message: '发布成功' })
     }
     router.back()
@@ -170,5 +265,43 @@ async function handlePublish() {
   font-size: 12px;
   color: #999;
   margin-top: 8px;
+}
+
+.tags-section {
+  margin-top: 20px;
+}
+
+.tags-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tag-item {
+  cursor: pointer;
+}
+
+.custom-tag-input {
+  margin-bottom: 12px;
+}
+
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.selected-label {
+  font-size: 13px;
+  color: #999;
 }
 </style>

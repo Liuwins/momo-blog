@@ -27,3 +27,7 @@ export function getUserPosts(userId, params) {
 export function toggleLike(postId) {
   return request.post(`/posts/${postId}/like`)
 }
+
+export function getTags() {
+  return request.get('/posts/tags')
+}

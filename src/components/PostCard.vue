@@ -40,6 +40,18 @@
 
     <ImageGrid :images="post.images" class="post-images" />
 
+    <!-- 标签展示 -->
+    <div v-if="post.tags && post.tags.length" class="post-tags">
+      <span
+        v-for="tag in post.tags"
+        :key="tag"
+        class="tag-chip"
+        @click="emit('tag-click', tag)"
+      >
+        #{{ tag }}
+      </span>
+    </div>
+
     <div class="post-actions">
       <LikeButton
         :post-id="post.id"
@@ -99,7 +111,7 @@ const props = defineProps({
   currentUserId: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['comment', 'view-all', 'reply', 'delete-comment', 'update:liked', 'update:count', 'deleted'])
+const emit = defineEmits(['comment', 'view-all', 'reply', 'delete-comment', 'update:liked', 'update:count', 'deleted', 'tag-click'])
 const router = useRouter()
 const contentCollapsed = ref(true)
 const showFullBtn = ref(false)
@@ -244,6 +256,28 @@ async function handleMenuSelect(action) {
 
 .post-images {
   margin-bottom: 10px;
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.tag-chip {
+  display: inline-block;
+  font-size: 13px;
+  color: #576b95;
+  background: #f0f4fa;
+  padding: 2px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tag-chip:active {
+  background: #dfe7f5;
 }
 
 .post-actions {
