@@ -10,6 +10,7 @@
         @update:liked="post.liked = $event"
         @update:count="post.likeCount = $event"
         @delete-comment="handleDeleteComment"
+        @deleted="handleDeleted"
       />
 
       <div class="detail-comments">
@@ -65,7 +66,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import { getPostDetail } from '@/api/post'
@@ -73,6 +74,7 @@ import { createComment, deleteComment } from '@/api/comment'
 import { formatRelativeTime } from '@/utils/time'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const post = ref(null)
 const commentText = ref('')
@@ -95,7 +97,10 @@ async function submitComment() {
       postId: route.params.id,
       content: commentText.value
     })
-    post.value.comments.push(res.comment)
+    // 后端直接返回评论对象（无 res.comment 包装）
+    if (!post.value.comments) post.value.comments = []
+    post.value.comments.push(res)
+    post.value.commentCount = post.value.comments.length
     commentText.value = ''
     showToast({ type: 'success', message: '评论成功' })
   } catch (e) {
@@ -108,6 +113,7 @@ async function handleDeleteComment(comment) {
     await deleteComment(comment.id)
     const idx = post.value.comments.findIndex(c => c.id === comment.id)
     if (idx !== -1) post.value.comments.splice(idx, 1)
+    post.value.commentCount = post.value.comments.length
     showToast({ type: 'success', message: '已删除' })
   } catch (e) {
     showToast({ type: 'fail', message: '删除失败' })
@@ -115,6 +121,11 @@ async function handleDeleteComment(comment) {
 }
 
 function handleComment(_post) {
+}
+
+function handleDeleted() {
+  showToast({ type: 'success', message: '已删除' })
+  router.back()
 }
 </script>
 

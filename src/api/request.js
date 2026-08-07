@@ -70,7 +70,8 @@ request.interceptors.response.use(
     }
     if (res.code === 401) {
       localStorage.removeItem('token')
-      router.push('/login')
+      // 带上当前页面路径，登录后跳回
+      router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       toast('fail', '登录已过期，请重新登录')
     } else {
       toast('fail', res.message || '请求失败')
@@ -80,7 +81,8 @@ request.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
-      router.push('/login')
+      // 带上当前页面路径，登录后跳回
+      router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       toast('fail', '登录已过期，请重新登录')
     } else {
       toast('fail', '网络异常，请检查网络连接')

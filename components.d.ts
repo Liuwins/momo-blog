@@ -15,6 +15,7 @@ declare module 'vue' {
     CommentList: typeof import('./src/components/CommentList.vue')['default']
     ImageGrid: typeof import('./src/components/ImageGrid.vue')['default']
     LikeButton: typeof import('./src/components/LikeButton.vue')['default']
+    MarkdownView: typeof import('./src/components/MarkdownView.vue')['default']
     PostCard: typeof import('./src/components/PostCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

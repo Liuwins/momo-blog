@@ -26,7 +26,8 @@
 
     <div v-if="post.content" class="post-content">
       <div ref="contentRef" class="content-text" :class="{ collapsed: contentCollapsed }">
-        {{ post.content }}
+        <MarkdownView v-if="isMarkdown" :content="post.content" />
+        <template v-else>{{ post.content }}</template>
       </div>
       <div
         v-if="showFullBtn"
@@ -91,6 +92,7 @@ import { useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { formatRelativeTime } from '@/utils/time'
 import { deletePost } from '@/api/post'
+import MarkdownView from '@/components/MarkdownView.vue'
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -105,6 +107,13 @@ const contentRef = ref(null)
 const showMenu = ref(false)
 
 const isOwner = computed(() => props.currentUserId && props.post.userId === props.currentUserId)
+
+// 判断是否包含 markdown 语法（避免普通文本误渲染）
+const MD_PATTERN = /(\*\*[^*]+\*\*|\*[^*]+\*|^#{1,4}\s|^>\s|^[-*+]\s|^```|\[[^\]]+\]\([^)]+\)|!\[[^\]]*\]\([^)]+\))/m
+const isMarkdown = computed(() => {
+  const c = props.post.content || ''
+  return MD_PATTERN.test(c) && c.length < 5000
+})
 
 const actions = computed(() => {
   const list = [{ name: '编辑', key: 'edit' }]

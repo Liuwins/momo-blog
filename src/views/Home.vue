@@ -243,6 +243,7 @@ async function handleDeleteComment({ post, comment }) {
     const list = post.comments || []
     const idx = list.findIndex(c => c.id === comment.id)
     if (idx !== -1) list.splice(idx, 1)
+    post.commentCount = list.length
     showToast({ type: 'success', message: '已删除' })
   } catch (e) {
     showToast({ type: 'fail', message: '删除失败' })
@@ -259,6 +260,9 @@ async function submitComment() {
     })
     // 后端直接返回评论对象，没有 res.comment 包装
     currentComments.value.push(res)
+    if (currentPost.value) {
+      currentPost.value.commentCount = currentComments.value.length
+    }
     commentText.value = ''
     replyTo.value = null
     showToast({ type: 'success', message: '评论成功' })
