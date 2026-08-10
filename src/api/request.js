@@ -78,6 +78,11 @@ request.interceptors.response.use(
       // 带上当前页面路径，登录后跳回
       router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       toast('fail', '登录已过期，请重新登录')
+    } else if (res && res.code === 403) {
+      toast('fail', '请先登录')
+      setTimeout(() => {
+        router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
+      }, 1000)
     } else if (res && res.message) {
       toast('fail', res.message)
     } else {
@@ -91,6 +96,12 @@ request.interceptors.response.use(
       // 带上当前页面路径，登录后跳回
       router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
       toast('fail', '登录已过期，请重新登录')
+    } else if (error.response?.status === 403) {
+      // 未登录操作（点赞/评论/发布）→ 跳登录
+      toast('fail', '请先登录')
+      setTimeout(() => {
+        router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
+      }, 1000)
     } else {
       toast('fail', '网络异常，请检查网络连接')
     }

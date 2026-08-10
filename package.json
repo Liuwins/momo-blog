@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "rm -rf dist node_modules/.vite node_modules/.cache && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.vue",
     "format": "prettier --write src",

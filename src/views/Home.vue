@@ -80,34 +80,45 @@
       </van-list>
     </van-pull-refresh>
 
+    <!-- 评论弹窗 -->
     <van-popup
       v-model:show="showCommentPopup"
       position="bottom"
-      :style="{ height: '50vh' }"
+      :style="{ height: '60vh' }"
       round
     >
       <div class="comment-popup">
         <div class="comment-header">
-          <span>评论</span>
+          <span>评论 ({{ currentComments.length }})</span>
           <van-icon name="cross" @click="showCommentPopup = false" />
         </div>
         <div ref="commentBodyRef" class="comment-body">
+          <div v-if="currentComments.length === 0" class="comment-empty">暂无评论</div>
           <div
             v-for="comment in currentComments"
             :key="comment.id"
             class="comment-item"
           >
-            <van-image round width="32" height="32" :src="comment.user.avatar" />
+            <van-image round width="32" height="32" :src="comment.avatar || defaultAvatar" />
             <div class="comment-item-content">
-              <div class="comment-item-nickname">{{ comment.user.nickname }}</div>
-              <div class="comment-item-text">
+              <div class="comment-item-nickname">
+                {{ comment.nickname || '匿名' }}
+                <span v-if="comment.status === 'pending'" class="audit-tag">审核中</span>
+              </div>
+              <!-- 审核中：博主正常看内容（灰色斜体+审核中标签），游客模糊遮罩 -->
+              <div class="comment-item-text" :class="{ 'audit-blur': comment.status === 'pending' && !userStore.isLoggedIn, 'pending': comment.status === 'pending' && userStore.isLoggedIn }">
                 <template v-if="comment.replyTo">
                   <span class="reply-tag">回复</span>
                   <span class="reply-nickname">@{{ comment.replyTo.nickname }}</span>
                 </template>
                 {{ comment.content }}
               </div>
-              <div class="comment-item-time">{{ comment.createdAt }}</div>
+              <div class="comment-item-time">{{ formatRelativeTime(comment.createdAt) }}</div>
+              <!-- 博主操作 -->
+              <div v-if="userStore.isLoggedIn && comment.status === 'pending'" class="comment-actions">
+                <span class="action-btn approve" @click="handleApproveComment(comment)">通过</span>
+                <span class="action-btn reject" @click="handleRejectComment(comment)">拒绝</span>
+              </div>
             </div>
           </div>
         </div>
@@ -115,6 +126,14 @@
           <div v-if="replyTo" class="reply-tag">
             <span>回复 @{{ replyTo.nickname }}</span>
             <van-icon name="cross" @click="clearReply" />
+          </div>
+          <!-- 未登录时输入昵称 -->
+          <div v-if="!userStore.isLoggedIn" class="nickname-input">
+            <van-field
+              v-model="commentNickname"
+              placeholder="输入你的昵称"
+              maxlength="20"
+            />
           </div>
           <van-field
             v-model="commentText"
@@ -125,7 +144,7 @@
               <van-button
                 size="small"
                 type="primary"
-                :disabled="!commentText.trim()"
+                :disabled="!commentText.trim() || (!userStore.isLoggedIn && !commentNickname.trim())"
                 @click="submitComment"
               >
                 发送
@@ -140,15 +159,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { showToast } from 'vant'
-import { getPosts, getTags } from '@/api/post'
-import { createComment, deleteComment } from '@/api/comment'
+import { getPosts, getTags, getComments, createComment, deleteComment, toggleLike, getLikeStatus, approveComment, rejectComment } from '@/api/post'
+import { getVisitorId, getVisitorNickname, setVisitorNickname } from '@/utils/visitor'
+import { formatRelativeTime } from '@/utils/time'
 
 const router = useRouter()
-const route = useRoute()
-const store = useFeedStore()
 const userStore = useUserStore()
 
 const refreshing = ref(false)
@@ -160,16 +178,17 @@ const keyword = ref('')
 const sortBy = ref('latest')
 const allTags = ref([])
 const activeTag = ref('')
-const searching = ref(false)
 const page = ref(1)
 const pageSize = 10
 
 const showCommentPopup = ref(false)
 const commentText = ref('')
+const commentNickname = ref('')
 const currentPost = ref(null)
 const currentComments = ref([])
 const replyTo = ref(null)
 const commentBodyRef = ref(null)
+const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
 
 // 搜索防抖
 let searchTimer = null
@@ -181,10 +200,7 @@ function onSearch() {
     finished.value = false
     error.value = false
     loading.value = false
-    searching.value = true
-    onLoad().finally(() => {
-      searching.value = false
-    })
+    onLoad()
   }, 300)
 }
 
@@ -227,6 +243,8 @@ onMounted(() => {
   error.value = false
   loading.value = false
   loadTags()
+  // 初始化游客昵称
+  commentNickname.value = getVisitorNickname()
 })
 
 async function onRefresh() {
@@ -278,18 +296,30 @@ function handleDeleted(postId) {
   if (idx !== -1) list.value.splice(idx, 1)
 }
 
-function handleComment(post) {
+async function handleComment(post) {
   currentPost.value = post
-  currentComments.value = post.comments || []
   replyTo.value = null
   showCommentPopup.value = true
+  // 加载评论列表（游客只返回已审核，博主返回所有）
+  try {
+    const comments = await getComments(post.id)
+    currentComments.value = comments
+  } catch (e) {
+    currentComments.value = post.comments || []
+  }
 }
 
-function handleReply({ post, comment }) {
+async function handleReply({ post, comment }) {
   currentPost.value = post
-  currentComments.value = post.comments || []
-  replyTo.value = { id: comment.id, nickname: comment.user?.nickname }
+  replyTo.value = { id: comment.id, nickname: comment.nickname || comment.user?.nickname }
   showCommentPopup.value = true
+  // 加载评论列表
+  try {
+    const comments = await getComments(post.id)
+    currentComments.value = comments
+  } catch (e) {
+    currentComments.value = []
+  }
 }
 
 function clearReply() {
@@ -316,22 +346,52 @@ async function handleDeleteComment({ post, comment }) {
 
 async function submitComment() {
   if (!commentText.value.trim()) return
+  if (!userStore.isLoggedIn && !commentNickname.value.trim()) {
+    showToast({ type: 'fail', message: '请输入昵称' })
+    return
+  }
   try {
-    const res = await createComment({
+    const payload = {
       postId: currentPost.value.id,
       content: commentText.value,
       replyTo: replyTo.value ? { id: replyTo.value.id, nickname: replyTo.value.nickname } : null
-    })
-    // 后端直接返回评论对象，没有 res.comment 包装
+    }
+    // 未登录时带上昵称和 visitorId
+    if (!userStore.isLoggedIn) {
+      payload.nickname = commentNickname.value.trim()
+      payload.visitorId = getVisitorId()
+      setVisitorNickname(commentNickname.value.trim())
+    }
+    const res = await createComment(payload)
     currentComments.value.push(res)
     if (currentPost.value) {
       currentPost.value.commentCount = currentComments.value.length
     }
     commentText.value = ''
     replyTo.value = null
-    showToast({ type: 'success', message: '评论成功' })
+    showToast({ type: 'success', message: '评论成功，等待审核' })
   } catch (e) {
     showToast({ type: 'fail', message: '评论失败' })
+  }
+}
+
+async function handleApproveComment(comment) {
+  try {
+    await approveComment(comment.id)
+    comment.status = 'approved'
+    showToast({ type: 'success', message: '已通过' })
+  } catch (e) {
+    showToast({ type: 'fail', message: '操作失败' })
+  }
+}
+
+async function handleRejectComment(comment) {
+  try {
+    await rejectComment(comment.id)
+    comment.status = 'rejected'
+    showToast({ type: 'success', message: '已拒绝' })
+  } catch (e) {
+    showToast({ type: 'fail', message: '操作失败' })
   }
 }
 </script>
@@ -440,6 +500,12 @@ async function submitComment() {
   padding: 12px 16px;
 }
 
+.comment-empty {
+  text-align: center;
+  color: #999;
+  padding: 40px 0;
+}
+
 .comment-item {
   display: flex;
   gap: 10px;
@@ -455,6 +521,27 @@ async function submitComment() {
   font-size: 13px;
   color: #576b95;
   font-weight: 500;
+}
+
+.audit-tag {
+  font-size: 10px;
+  color: #ff9800;
+  background: #fff3e0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+}
+
+.audit-blur {
+  filter: blur(5px);
+  user-select: none;
+  pointer-events: none;
+  color: #999 !important;
+}
+
+.comment-item-text.pending {
+  color: #999;
+  font-style: italic;
 }
 
 .comment-item-text {
@@ -478,6 +565,29 @@ async function submitComment() {
   margin-top: 4px;
 }
 
+.comment-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.action-btn.approve {
+  color: #07C160;
+  background: #e8f5e9;
+}
+
+.action-btn.reject {
+  color: #ee0a24;
+  background: #ffebee;
+}
+
 .reply-indicator {
   display: flex;
   align-items: center;
@@ -498,5 +608,15 @@ async function submitComment() {
 .comment-input-bar {
   border-top: 1px solid #f0f0f0;
   padding: 8px 12px;
+}
+
+.nickname-input {
+  margin-bottom: 8px;
+}
+
+.nickname-input :deep(.van-field) {
+  background: #f5f5f5;
+  border-radius: 4px;
+  padding: 4px 8px;
 }
 </style>

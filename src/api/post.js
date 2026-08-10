@@ -24,10 +24,45 @@ export function getUserPosts(userId, params) {
   return request.get(`/users/${userId}/posts`, { params })
 }
 
-export function toggleLike(postId) {
-  return request.post(`/posts/${postId}/like`)
+export function toggleLike(postId, visitorId) {
+  const params = visitorId ? { visitorId } : {}
+  return request.post(`/posts/${postId}/like`, null, { params })
+}
+
+export function getLikeStatus(postId, visitorId) {
+  const params = visitorId ? { visitorId } : {}
+  return request.get(`/posts/${postId}/like-status`, { params })
 }
 
 export function getTags() {
   return request.get('/posts/tags')
+}
+
+// 评论
+export function getComments(postId) {
+  return request.get(`/comments/post/${postId}`)
+}
+
+export function createComment(data) {
+  return request.post('/comments', data)
+}
+
+export function deleteComment(id) {
+  return request.delete(`/comments/${id}`)
+}
+
+export function approveComment(id) {
+  return request.post(`/comments/${id}/approve`)
+}
+
+export function rejectComment(id) {
+  return request.post(`/comments/${id}/reject`)
+}
+
+export function getPendingComments(params) {
+  return request.get('/comments/admin/pending', { params })
+}
+
+export function getPendingCount() {
+  return request.get('/comments/admin/pending-count')
 }

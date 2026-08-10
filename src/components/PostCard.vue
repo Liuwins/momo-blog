@@ -5,12 +5,12 @@
         round
         width="40"
         height="40"
-        :src="post.user.avatar"
+        :src="post.user?.avatar || defaultAvatar"
         class="avatar"
         @click="goProfile"
       />
       <div class="header-info">
-        <div class="nickname" @click="goProfile">{{ post.user.nickname }}</div>
+        <div class="nickname" @click="goProfile">{{ post.user?.nickname || '匿名' }}</div>
         <div class="time">{{ formatRelativeTime(post.createdAt) }}</div>
       </div>
       <!-- 自己的文章：更多菜单 -->
@@ -79,13 +79,22 @@
       </span>
     </div>
 
-    <CommentList
-      :comments="post.comments"
-      :current-user-id="currentUserId"
-      @view-all="handleViewAll"
-      @reply="handleReply"
-      @delete="handleDeleteComment"
-    />
+    <!-- 评论预览 -->
+    <div v-if="post.comments && post.comments.length" class="comment-preview">
+      <div
+        v-for="comment in post.comments.slice(0, 3)"
+        :key="comment.id"
+        class="comment-preview-item"
+        @click="handleComment"
+      >
+        <span class="comment-preview-nickname">{{ comment.nickname || '匿名' }}</span>
+        <span v-if="comment.status === 'pending'" class="audit-tag">审核中</span>
+        <span class="comment-preview-content" :class="{ 'audit-blur': comment.status === 'pending' }">: {{ comment.content }}</span>
+      </div>
+      <div v-if="post.comments.length > 3" class="comment-more" @click="handleComment">
+        查看全部 {{ post.comments.length }} 条评论
+      </div>
+    </div>
 
     <!-- 操作菜单（朋友圈风格） -->
     <van-action-sheet
@@ -105,6 +114,7 @@ import { showToast, showConfirmDialog } from 'vant'
 import { formatRelativeTime } from '@/utils/time'
 import { deletePost } from '@/api/post'
 import MarkdownView from '@/components/MarkdownView.vue'
+import LikeButton from '@/components/LikeButton.vue'
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -117,6 +127,7 @@ const contentCollapsed = ref(true)
 const showFullBtn = ref(false)
 const contentRef = ref(null)
 const showMenu = ref(false)
+const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
 
 const isOwner = computed(() => props.currentUserId && props.post.userId === props.currentUserId)
 
@@ -320,5 +331,48 @@ async function handleMenuSelect(action) {
 .like-users-text {
   flex: 1;
   color: #576b95;
+}
+
+.comment-preview {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-radius: 6px;
+}
+
+.comment-preview-item {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #333;
+  cursor: pointer;
+}
+
+.comment-preview-item:active {
+  opacity: 0.6;
+}
+
+.comment-preview-nickname {
+  color: #576b95;
+  font-weight: 500;
+}
+
+.comment-preview-content {
+  color: #333;
+}
+
+.audit-tag {
+  font-size: 10px;
+  color: #ff9800;
+  background: #fff3e0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.comment-more {
+  color: #576b95;
+  font-size: 13px;
+  margin-top: 6px;
+  cursor: pointer;
 }
 </style>
