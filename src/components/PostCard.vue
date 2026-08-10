@@ -57,6 +57,14 @@
         <van-icon name="chat-o" size="20" color="#333" />
         <span class="action-text">{{ post.commentCount > 0 ? post.commentCount : '评论' }}</span>
       </div>
+      <div class="action-item" @click="handleFavorite">
+        <van-icon
+          :name="favorited ? 'star' : 'star-o'"
+          :color="favorited ? '#ffb300' : '#333'"
+          size="20"
+        />
+        <span class="action-text" :class="{ active: favorited }">收藏</span>
+      </div>
     </div>
 
     <div v-if="post.likeUsers && post.likeUsers.length > 0" class="like-users">
@@ -112,6 +120,7 @@ import { ref, onMounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { formatRelativeTime } from '@/utils/time'
+import { isFavorited, toggleFavorite } from '@/utils/storage'
 import { deletePost } from '@/api/post'
 import MarkdownView from '@/components/MarkdownView.vue'
 import LikeButton from '@/components/LikeButton.vue'
@@ -130,6 +139,8 @@ const showFullBtn = ref(false)
 const contentRef = ref(null)
 const showMenu = ref(false)
 const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
+// 收藏状态：挂载时从本地存储读取，避免跨组件不同步
+const favorited = ref(false)
 
 const isOwner = computed(() => props.currentUserId && props.post.userId === props.currentUserId)
 
@@ -148,6 +159,7 @@ const actions = computed(() => {
 })
 
 onMounted(async () => {
+  favorited.value = isFavorited(props.post.id)
   await nextTick()
   if (contentRef.value) {
     showFullBtn.value = contentRef.value.scrollHeight > contentRef.value.clientHeight
@@ -160,6 +172,12 @@ function goProfile() {
 
 function handleComment() {
   emit('comment', props.post)
+}
+
+function handleFavorite() {
+  const nowFav = toggleFavorite(props.post)
+  favorited.value = nowFav
+  showToast({ type: 'success', message: nowFav ? '已收藏' : '已取消收藏' })
 }
 
 async function handleMenuSelect(action) {
@@ -303,6 +321,10 @@ async function handleMenuSelect(action) {
 .action-text {
   font-size: 13px;
   color: #666;
+}
+
+.action-text.active {
+  color: #ffb300;
 }
 
 .like-users {

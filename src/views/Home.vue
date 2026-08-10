@@ -7,6 +7,18 @@
     </app-nav-bar>
 
     <div class="home-toolbar">
+      <!-- 动态流切换：全部 / 关注（登录用户可见） -->
+      <div v-if="userStore.isLoggedIn" class="feed-tabs">
+        <span class="feed-tab" :class="{ active: feedType === 'all' }" @click="switchFeed('all')"
+          >全部</span
+        >
+        <span
+          class="feed-tab"
+          :class="{ active: feedType === 'following' }"
+          @click="switchFeed('following')"
+          >关注</span
+        >
+      </div>
       <van-search
         v-model="keyword"
         placeholder="搜索内容"
@@ -24,6 +36,22 @@
         <span class="sort-tab" :class="{ active: sortBy === 'hot' }" @click="changeSort('hot')"
           >最热</span
         >
+      </div>
+      <!-- 本周热门话题榜 -->
+      <div v-if="hotTags.length" class="hot-tags">
+        <span class="hot-label">🔥 热门</span>
+        <div class="hot-tags-scroll">
+          <span
+            v-for="(tag, idx) in hotTags"
+            :key="tag.name"
+            class="hot-tag-item"
+            :class="{ active: activeTag === tag.name }"
+            @click="filterByTag(tag.name)"
+          >
+            <span class="hot-rank" :class="`rank-${idx + 1}`">{{ idx + 1 }}</span>
+            #{{ tag.name }}
+          </span>
+        </div>
       </div>
       <!-- 标签筛选 -->
       <div v-if="allTags.length" class="tag-filter">
@@ -179,6 +207,7 @@ import {
   approveComment,
   rejectComment
 } from '@/api/post'
+import { getFollowingPosts } from '@/api/user'
 import { getVisitorId, getVisitorNickname, setVisitorNickname } from '@/utils/visitor'
 import { formatRelativeTime } from '@/utils/time'
 
@@ -193,9 +222,12 @@ const list = ref([])
 const keyword = ref('')
 const sortBy = ref('latest')
 const allTags = ref([])
+const hotTags = ref([])
 const activeTag = ref('')
 const page = ref(1)
 const pageSize = 10
+// 动态流类型：全部 / 关注
+const feedType = ref('all')
 
 const showCommentPopup = ref(false)
 const commentText = ref('')
@@ -210,6 +242,8 @@ const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
 // 搜索防抖
 let searchTimer = null
 function onSearch() {
+  // 关注流下搜索，自动切回全部流
+  feedType.value = 'all'
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
     list.value = []
@@ -224,14 +258,24 @@ function onSearch() {
 async function onLoad() {
   loading.value = true
   try {
-    const params = { page: page.value, pageSize: pageSize, sortBy: sortBy.value }
-    if (keyword.value.trim()) params.keyword = keyword.value.trim()
-    if (activeTag.value) params.tag = activeTag.value
-    const res = await getPosts(params)
+    let res
+    if (feedType.value === 'following') {
+      // 关注流：不支持搜索/标签筛选/排序
+      res = await getFollowingPosts(page.value, pageSize)
+    } else {
+      const params = { page: page.value, pageSize: pageSize, sortBy: sortBy.value }
+      if (keyword.value.trim()) params.keyword = keyword.value.trim()
+      if (activeTag.value) params.tag = activeTag.value
+      res = await getPosts(params)
+    }
     if (res.list.length < pageSize) {
       finished.value = true
     }
-    list.value.push(...res.list)
+    // 关注流返回的是 Post 实体，需适配 PostCard 的 user 嵌套结构
+    const items = (res.list || []).map((p) =>
+      p.user ? p : { ...p, user: { id: p.userId, nickname: p.nickname, avatar: p.avatar } }
+    )
+    list.value.push(...items)
     page.value++
   } catch (e) {
     error.value = true
@@ -241,10 +285,24 @@ async function onLoad() {
   }
 }
 
-// 加载标签列表
+// 切换动态流
+function switchFeed(type) {
+  if (feedType.value === type) return
+  feedType.value = type
+  list.value = []
+  page.value = 1
+  finished.value = false
+  error.value = false
+  loading.value = false
+  onLoad()
+}
+
+// 加载标签列表（全量 + 本周热门 Top 6）
 async function loadTags() {
   try {
-    allTags.value = await getTags()
+    const [all, hot] = await Promise.all([getTags(), getTags('week')])
+    allTags.value = all || []
+    hotTags.value = (hot || []).slice(0, 6)
   } catch (e) {
     /* 忽略 */
   }
@@ -283,6 +341,7 @@ async function onRefresh() {
 
 function changeSort(sort) {
   if (sortBy.value === sort) return
+  feedType.value = 'all'
   sortBy.value = sort
   list.value = []
   page.value = 1
@@ -293,6 +352,7 @@ function changeSort(sort) {
 }
 
 function filterByTag(tag) {
+  feedType.value = 'all'
   activeTag.value = tag
   list.value = []
   page.value = 1
@@ -462,6 +522,25 @@ async function handleRejectComment(comment) {
   border-bottom: 1px solid #f0f0f0;
 }
 
+.feed-tabs {
+  display: flex;
+  gap: 20px;
+  padding: 4px 0 8px;
+}
+
+.feed-tab {
+  font-size: 15px;
+  color: #666;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.feed-tab.active {
+  color: #07c160;
+  font-weight: 600;
+  font-size: 17px;
+}
+
 .home-search {
   padding: 0 0 8px;
 }
@@ -481,6 +560,79 @@ async function handleRejectComment(comment) {
 .sort-tab.active {
   color: #07c160;
   font-weight: 500;
+}
+
+.hot-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  margin-top: 4px;
+}
+
+.hot-label {
+  font-size: 12px;
+  color: #ee0a24;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.hot-tags-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.hot-tags-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.hot-tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  color: #576b95;
+  background: #f0f4fa;
+  padding: 3px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hot-tag-item.active {
+  background: #07c160;
+  color: #fff;
+}
+
+.hot-rank {
+  font-size: 10px;
+  font-weight: 700;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 50%;
+  color: #999;
+  background: #e0e0e0;
+}
+
+.hot-rank.rank-1 {
+  color: #fff;
+  background: #ee0a24;
+}
+
+.hot-rank.rank-2 {
+  color: #fff;
+  background: #ff7a00;
+}
+
+.hot-rank.rank-3 {
+  color: #fff;
+  background: #ffb300;
 }
 
 .tag-filter {

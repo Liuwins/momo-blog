@@ -1,8 +1,10 @@
 <template>
-  <div class="page-container" :class="{ 'page-container--with-tab': showTabBar }">
-    <router-view />
-    <TabBar v-if="showTabBar" />
-  </div>
+  <van-config-provider :theme="isDark ? 'dark' : 'light'">
+    <div class="page-container" :class="{ 'page-container--with-tab': showTabBar }">
+      <router-view />
+      <TabBar v-if="showTabBar" />
+    </div>
+  </van-config-provider>
 </template>
 
 <script setup>
@@ -10,11 +12,13 @@ import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
+import { useTheme } from '@/utils/theme'
 import TabBar from '@/components/TabBar.vue'
 
 const route = useRoute()
 const userStore = useUserStore()
 const notificationStore = useNotificationStore()
+const { isDark } = useTheme()
 
 const showTabBar = computed(() => {
   if (!userStore.isLoggedIn) return false

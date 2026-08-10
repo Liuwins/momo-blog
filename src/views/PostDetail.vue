@@ -112,6 +112,7 @@ import {
   rejectComment
 } from '@/api/post'
 import { getVisitorId, getVisitorNickname, setVisitorNickname } from '@/utils/visitor'
+import { addHistory } from '@/utils/storage'
 import { formatRelativeTime } from '@/utils/time'
 
 const route = useRoute()
@@ -131,6 +132,8 @@ onMounted(async () => {
   try {
     const res = await getPostDetail(route.params.id)
     post.value = res
+    // 记录浏览历史（本地存储）
+    addHistory(res)
     // 加载评论列表
     await loadComments()
     // 初始化游客昵称

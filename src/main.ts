@@ -6,7 +6,11 @@ import { installPlugins } from './plugins'
 import { Lazyload } from 'vant'
 import 'vant/es/lazyload/style'
 import './styles/variables.css'
+import { initTheme } from './utils/theme'
 // import './mock'  // 已切换到真实后端，关闭 mock
+
+// 初始化主题（暗黑模式持久化）
+initTheme()
 
 const app = createApp(App)
 app.use(router)

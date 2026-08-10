@@ -36,6 +36,11 @@ const routes = [
     component: () => import(/* webpackPrefetch: true */ '@/views/Profile.vue')
   },
   {
+    path: '/favorites',
+    name: 'Favorites',
+    component: () => import(/* webpackPrefetch: true */ '@/views/Favorites.vue')
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFound.vue')

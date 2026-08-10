@@ -47,6 +47,33 @@
       >
         编辑资料
       </van-button>
+      <!-- 非本人：关注/已关注按钮 -->
+      <van-button
+        v-else-if="userStore.isLoggedIn && profile.id"
+        size="small"
+        :plain="isFollowing"
+        round
+        :color="isFollowing ? '#999' : '#07C160'"
+        class="edit-btn"
+        :loading="followLoading"
+        @click="handleToggleFollow"
+      >
+        {{ isFollowing ? '已关注' : '+ 关注' }}
+      </van-button>
+    </div>
+
+    <!-- 快捷入口：收藏与历史、暗黑模式（仅本人可见） -->
+    <div v-if="isOwner" class="quick-entry">
+      <div class="entry-item" @click="router.push('/favorites')">
+        <van-icon name="star-o" size="20" color="#07C160" />
+        <span>收藏与历史</span>
+        <van-icon name="arrow" size="14" color="#c8c9cc" class="arrow" />
+      </div>
+      <div class="entry-item">
+        <van-icon name="bulb-o" size="20" color="#07C160" />
+        <span>暗黑模式</span>
+        <van-switch :model-value="isDark" size="20px" class="arrow" @change="toggleTheme" />
+      </div>
     </div>
 
     <div class="profile-posts">
@@ -118,7 +145,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
-import { getUserInfo, getMe, updateUserInfo } from '@/api/user'
+import { useTheme } from '@/utils/theme'
+import { getUserInfo, getMe, updateUserInfo, followUser, unfollowUser } from '@/api/user'
 import { getUserPosts } from '@/api/post'
 import { uploadImages } from '@/api/upload'
 import { compressImage } from '@/utils/compress'
@@ -126,6 +154,7 @@ import { compressImage } from '@/utils/compress'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const { isDark, toggleTheme } = useTheme()
 
 const profile = ref({
   id: 0,
@@ -151,6 +180,9 @@ let profileReady = false
 const showEdit = ref(false)
 const editForm = ref({ nickname: '', signature: '', avatar: '' })
 const avatarFile = ref([])
+// 关注状态
+const isFollowing = ref(false)
+const followLoading = ref(false)
 
 const isOwner = computed(() => {
   return userStore.userInfo?.id === profile.value.id
@@ -206,6 +238,8 @@ async function loadProfile() {
       showToast({ type: 'fail', message: '加载失败' })
       return
     }
+    // 同步关注状态
+    isFollowing.value = !!res.isFollowing
     editForm.value = {
       nickname: profile.value.nickname,
       signature: profile.value.signature,
@@ -315,6 +349,35 @@ async function handleEdit() {
 }
 
 function handleComment(_post) {}
+
+// 关注 / 取消关注（乐观更新 + 失败回滚）
+async function handleToggleFollow() {
+  if (followLoading.value) return
+  followLoading.value = true
+  const prev = isFollowing.value
+  isFollowing.value = !prev
+  // 同步乐观更新粉丝数
+  profile.value.followerCount = Math.max(
+    0,
+    (profile.value.followerCount || 0) + (isFollowing.value ? 1 : -1)
+  )
+  try {
+    if (isFollowing.value) {
+      await followUser(profile.value.id)
+      showToast({ type: 'success', message: '已关注' })
+    } else {
+      await unfollowUser(profile.value.id)
+      showToast({ type: 'success', message: '已取消关注' })
+    }
+  } catch (e) {
+    // 回滚
+    isFollowing.value = prev
+    profile.value.followerCount = Math.max(0, (profile.value.followerCount || 0) + (prev ? 1 : -1))
+    showToast({ type: 'fail', message: '操作失败' })
+  } finally {
+    followLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -380,6 +443,30 @@ function handleComment(_post) {}
 .edit-btn {
   display: block;
   margin: 12px auto 0;
+}
+
+.quick-entry {
+  border-top: 8px solid #f5f5f5;
+  border-bottom: 8px solid #f5f5f5;
+}
+
+.entry-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: 15px;
+  color: #333;
+  cursor: pointer;
+  background: #fff;
+}
+
+.entry-item:active {
+  background: #fafafa;
+}
+
+.entry-item .arrow {
+  margin-left: auto;
 }
 
 .profile-posts {

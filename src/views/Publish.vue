@@ -132,12 +132,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { createPost, getPostDetail, updatePost, getTags } from '@/api/post'
 import { uploadImages, uploadVideo } from '@/api/upload'
 import { compressImage } from '@/utils/compress'
+import { getDraft, saveDraft, clearDraft } from '@/utils/storage'
 
 const router = useRouter()
 const route = useRoute()
@@ -158,6 +159,7 @@ const canPublish = computed(
 )
 
 let focusTimer = null
+let draftTimer = null
 
 onMounted(async () => {
   focusTimer = setTimeout(() => {
@@ -170,6 +172,41 @@ onMounted(async () => {
     existingTags.value = tags || []
   } catch (e) {
     /* 忽略 */
+  }
+
+  // 非编辑模式：检测是否有未提交草稿，提示恢复
+  if (!isEdit.value) {
+    const draft = getDraft()
+    if (draft && (draft.content || (draft.images && draft.images.length))) {
+      try {
+        await showConfirmDialog({
+          title: '恢复草稿',
+          message: `检测到未提交的草稿（${new Date(draft.savedAt).toLocaleString()}），是否恢复？`
+        })
+        content.value = draft.content || ''
+        selectedTags.value = draft.tags || []
+        if (draft.images && draft.images.length) {
+          fileList.value = draft.images.map((url) => ({
+            url,
+            status: 'done',
+            serverUrl: url,
+            isImage: true
+          }))
+        }
+        if (draft.videos && draft.videos.length) {
+          videoList.value = draft.videos.map((url) => ({
+            url,
+            status: 'done',
+            serverUrl: url,
+            isVideo: true
+          }))
+        }
+        showToast({ type: 'success', message: '草稿已恢复' })
+      } catch {
+        // 用户选择不恢复，清掉旧草稿
+        clearDraft()
+      }
+    }
   }
 
   // 编辑模式：加载旧内容
@@ -188,6 +225,40 @@ onMounted(async () => {
     }
   }
 })
+
+// 组件卸载时清理定时器，防止内存泄漏
+onUnmounted(() => {
+  if (focusTimer) {
+    clearTimeout(focusTimer)
+    focusTimer = null
+  }
+  if (draftTimer) {
+    clearTimeout(draftTimer)
+    draftTimer = null
+  }
+})
+
+// 草稿自动保存：内容变化时防抖 1 秒存入本地（仅新建模式，编辑模式不打扰）
+watch(
+  [content, fileList, videoList, selectedTags],
+  () => {
+    if (isEdit.value) return
+    if (draftTimer) clearTimeout(draftTimer)
+    draftTimer = setTimeout(() => {
+      const images = fileList.value
+        .filter((item) => item.status === 'done' && item.serverUrl)
+        .map((item) => item.serverUrl)
+      const videos = videoList.value
+        .filter((item) => item.status === 'done' && item.serverUrl)
+        .map((item) => item.serverUrl)
+      // 只在有实际内容时保存
+      if (content.value.trim() || images.length || videos.length) {
+        saveDraft({ content: content.value, images, videos, tags: selectedTags.value })
+      }
+    }, 1000)
+  },
+  { deep: true }
+)
 
 function toggleTag(tag) {
   const idx = selectedTags.value.indexOf(tag)
@@ -329,6 +400,8 @@ async function handlePublish() {
       showToast({ type: 'success', message: '保存成功' })
     } else {
       await createPost(payload)
+      // 发布成功，清掉草稿
+      clearDraft()
       showToast({ type: 'success', message: '发布成功' })
     }
     router.back()

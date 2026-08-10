@@ -28,6 +28,59 @@
   }
 }
 
+/* ========== 暗黑模式变量覆盖 ========== */
+html[data-theme='dark'] {
+  --text-primary: #e8e8e8;
+  --text-secondary: #b0b0b0;
+  --text-light: #888888;
+  --bg-page: #1a1a1a;
+  --bg-card: #232323;
+  --border-color: #2e2e2e;
+}
+
+html[data-theme='dark'] body {
+  background-color: #121212;
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .page-container {
+  background-color: var(--bg-card);
+}
+
+/* 暗黑模式：覆盖自定义组件的硬编码浅色背景/文字 */
+html[data-theme='dark'] .post-card,
+html[data-theme='dark'] .publish-page,
+html[data-theme='dark'] .profile-page,
+html[data-theme='dark'] .favorites-page,
+html[data-theme='dark'] .notifications-page,
+html[data-theme='dark'] .home-toolbar,
+html[data-theme='dark'] .comment-popup,
+html[data-theme='dark'] .edit-popup,
+html[data-theme='dark'] .detail-input-bar {
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .post-card .nickname,
+html[data-theme='dark'] .post-card .content-text,
+html[data-theme='dark'] .detail-comment-nickname,
+html[data-theme='dark'] .detail-comments-header {
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .comment-preview,
+html[data-theme='dark'] .reply-indicator {
+  background-color: #2e2e2e !important;
+}
+
+html[data-theme='dark'] .van-search {
+  background-color: var(--bg-card);
+}
+
+html[data-theme='dark'] .profile-bg {
+  opacity: 0.8;
+}
+
 * {
   margin: 0;
   padding: 0;
