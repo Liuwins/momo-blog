@@ -14,18 +14,25 @@ const props = defineProps({
 // 配置 marked（安全模式）
 marked.setOptions({
   gfm: true,
-  breaks: true, // 朋友圈风格：单换行即换行
+  breaks: true // 朋友圈风格：单换行即换行
+})
+
+// 用 DOMPurify hook 安全地为所有 <a> 标签添加 target 和 rel 属性
+// 避免正则替换导致的重复属性和误替换问题
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank')
+    node.setAttribute('rel', 'noopener noreferrer')
+  }
 })
 
 const rendered = computed(() => {
   if (!props.content) return ''
   const html = marked.parse(props.content)
-  // XSS 过滤：清理危险标签/事件处理器
-  const clean = DOMPurify.sanitize(html, {
-    ADD_ATTR: ['target'], // 允许 target="_blank"
+  // XSS 过滤：清理危险标签/事件处理器，hook 自动添加 target/rel
+  return DOMPurify.sanitize(html, {
+    ADD_ATTR: ['target']
   })
-  // 链接加 target=_blank（安全）
-  return clean.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
 })
 </script>
 
@@ -47,10 +54,18 @@ const rendered = computed(() => {
   line-height: 1.4;
 }
 
-.markdown-body h1 { font-size: 20px; }
-.markdown-body h2 { font-size: 18px; }
-.markdown-body h3 { font-size: 16px; }
-.markdown-body h4 { font-size: 15px; }
+.markdown-body h1 {
+  font-size: 20px;
+}
+.markdown-body h2 {
+  font-size: 18px;
+}
+.markdown-body h3 {
+  font-size: 16px;
+}
+.markdown-body h4 {
+  font-size: 15px;
+}
 
 /* 段落 */
 .markdown-body p {
@@ -58,8 +73,12 @@ const rendered = computed(() => {
 }
 
 /* 粗体/斜体 */
-.markdown-body strong { font-weight: 600; }
-.markdown-body em { font-style: italic; }
+.markdown-body strong {
+  font-weight: 600;
+}
+.markdown-body em {
+  font-style: italic;
+}
 
 /* 链接 */
 .markdown-body a {
@@ -105,7 +124,7 @@ const rendered = computed(() => {
 
 /* 引用 */
 .markdown-body blockquote {
-  border-left: 3px solid #07C160;
+  border-left: 3px solid #07c160;
   padding: 4px 12px;
   color: #666;
   background: #f8f9fa;

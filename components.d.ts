@@ -39,5 +39,6 @@ declare module 'vue' {
     VanTabbarItem: typeof import('vant/es')['TabbarItem']
     VanTag: typeof import('vant/es')['Tag']
     VanUploader: typeof import('vant/es')['Uploader']
+    VideoGrid: typeof import('./src/components/VideoGrid.vue')['default']
   }
 }

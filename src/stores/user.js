@@ -21,7 +21,19 @@ export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem(TOKEN_KEY) || '')
   const userInfo = ref(loadStoredUser())
 
+  // computed 必须是纯函数，不能有副作用
   const isLoggedIn = computed(() => {
+    if (!token.value) return false
+    const expires = localStorage.getItem(TOKEN_EXPIRES_KEY)
+    if (expires && Date.now() > Number(expires)) return false
+    return true
+  })
+
+  /**
+   * 主动检查 token 是否过期，若过期则执行登出
+   * 在路由守卫、App.vue onMounted、定时器中调用
+   */
+  function checkTokenExpiry() {
     if (!token.value) return false
     const expires = localStorage.getItem(TOKEN_EXPIRES_KEY)
     if (expires && Date.now() > Number(expires)) {
@@ -29,7 +41,7 @@ export const useUserStore = defineStore('user', () => {
       return false
     }
     return true
-  })
+  }
 
   async function loginAction(username, password) {
     const res = await login({ username, password })
@@ -78,6 +90,7 @@ export const useUserStore = defineStore('user', () => {
     loginAction,
     fetchUserInfo,
     setUserInfo,
-    logout
+    logout,
+    checkTokenExpiry
   }
 })

@@ -22,11 +22,15 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3009',
+        target: process.env.VITE_API_TARGET || 'http://localhost:3009',
+        changeOrigin: true
+      },
+      '/images': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3009',
         changeOrigin: true
       },
       '/socket.io': {
-        target: 'http://localhost:3009',
+        target: process.env.VITE_API_TARGET || 'http://localhost:3009',
         changeOrigin: true,
         ws: true
       }
@@ -34,7 +38,6 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    globals: true,
-    setupFiles: ['./src/test/setup.js']
+    globals: true
   }
 })

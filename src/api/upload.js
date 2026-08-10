@@ -10,3 +10,12 @@ export function uploadImages(files) {
     timeout: 60000
   })
 }
+
+export function uploadVideo(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  // 视频较大，超时设为 3 分钟
+  return request.post('/upload/video', formData, {
+    timeout: 180000
+  })
+}

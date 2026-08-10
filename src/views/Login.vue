@@ -27,11 +27,19 @@
             { required: true, message: '请输入密码' },
             { pattern: /^.{6,50}$/, message: '密码至少6位' }
           ]"
+          @keypress.enter="handleLogin"
         />
       </van-cell-group>
 
       <div style="margin: 16px">
-        <van-button round block type="primary" native-type="submit" color="#07C160">
+        <van-button
+          round
+          block
+          type="primary"
+          native-type="submit"
+          color="#07C160"
+          :loading="loading"
+        >
           登录
         </van-button>
       </div>
@@ -50,14 +58,25 @@ const route = useRoute()
 const userStore = useUserStore()
 const username = ref('')
 const password = ref('')
+const loading = ref(false)
 
 async function handleLogin() {
+  if (loading.value) return
+  loading.value = true
   try {
     await userStore.loginAction(username.value, password.value)
     showToast({ type: 'success', message: '登录成功' })
-    router.replace(route.query.redirect || '/')
+    // 校验 redirect 参数，防止开放重定向攻击
+    const redirect = route.query.redirect
+    const safeRedirect =
+      typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
+        ? redirect
+        : '/'
+    router.replace(safeRedirect)
   } catch (e) {
     showToast({ type: 'fail', message: e?.message || '账号或密码错误' })
+  } finally {
+    loading.value = false
   }
 }
 </script>
@@ -76,7 +95,7 @@ async function handleLogin() {
 
 .app-title {
   font-size: 28px;
-  color: #07C160;
+  color: #07c160;
   margin-bottom: 8px;
 }
 

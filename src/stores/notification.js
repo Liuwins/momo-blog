@@ -12,25 +12,48 @@ export const useNotificationStore = defineStore('notification', () => {
     const userStore = useUserStore()
     if (!userStore.isLoggedIn) return
     if (socket) return
-    const userId = userStore.userInfo?.id
-    if (!userId) return
+
+    const token = userStore.token
+    if (!token) return
 
     socket = io('/notifications', {
-      auth: { userId },
-      transports: ['websocket']
+      auth: { token },
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000
     })
 
+    // 收到新通知：未读数 +1
     socket.on('notification', () => {
       unreadCount.value++
     })
 
+    // 收到未读数更新
     socket.on('unreadUpdate', (data) => {
       unreadCount.value = data.count
+    })
+
+    // 连接成功：重新同步未读数（断线期间可能错过通知）
+    socket.on('connect', () => {
+      fetchUnreadCount()
+    })
+
+    // 连接错误
+    socket.on('connect_error', () => {
+      // 静默处理，socket.io 会自动重连
+    })
+
+    // 断开连接
+    socket.on('disconnect', () => {
+      // socket.io 会自动重连
     })
   }
 
   function disconnect() {
     if (socket) {
+      socket.removeAllListeners()
       socket.disconnect()
       socket = null
     }

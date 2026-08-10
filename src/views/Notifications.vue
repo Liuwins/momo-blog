@@ -2,7 +2,12 @@
   <div class="notifications-page">
     <app-nav-bar title="通知" show-back @click-left="goBack">
       <template #right>
-        <span class="mark-read-btn" @click="handleMarkAllRead">全部已读</span>
+        <span
+          class="mark-read-btn"
+          :class="{ disabled: markingRead || list.every((i) => i.isRead) }"
+          @click="handleMarkAllRead"
+          >{{ markingRead ? '处理中...' : '全部已读' }}</span
+        >
       </template>
     </app-nav-bar>
 
@@ -58,6 +63,8 @@ const error = ref(false)
 const page = ref(1)
 const pageSize = 20
 const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=guest'
+// 防重复提交：标记全部已读进行中
+const markingRead = ref(false)
 
 function actionText(type) {
   const map = { like: '赞了你的文章', comment: '评论了你的文章', reply: '回复了你的评论' }
@@ -97,10 +104,24 @@ function onRefresh() {
 }
 
 async function handleMarkAllRead() {
-  await markAllRead()
-  list.value.forEach((item) => (item.isRead = true))
-  notificationStore.unreadCount = 0
-  showToast('已全部已读')
+  // 防重复：进行中直接忽略
+  if (markingRead.value) return
+  // 无未读：无需请求
+  if (list.value.every((i) => i.isRead)) {
+    showToast('暂无未读通知')
+    return
+  }
+  markingRead.value = true
+  try {
+    await markAllRead()
+    list.value.forEach((item) => (item.isRead = true))
+    notificationStore.unreadCount = 0
+    showToast('已全部已读')
+  } catch (e) {
+    showToast({ type: 'fail', message: '操作失败，请重试' })
+  } finally {
+    markingRead.value = false
+  }
 }
 
 function handleClick(item) {
@@ -132,6 +153,11 @@ onMounted(() => {
 .mark-read-btn {
   color: #1989fa;
   font-size: 14px;
+  cursor: pointer;
+}
+.mark-read-btn.disabled {
+  color: #c8c9cc;
+  cursor: not-allowed;
 }
 .notification-item {
   display: flex;

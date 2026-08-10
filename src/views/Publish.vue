@@ -9,7 +9,9 @@
       @click-right="handlePublish"
     >
       <template #right>
-        <span :class="['publish-btn', { disabled: !canPublish }]">{{ isEdit ? '保存' : '发布' }}</span>
+        <span :class="['publish-btn', { disabled: !canPublish }]">{{
+          isEdit ? '保存' : '发布'
+        }}</span>
       </template>
     </van-nav-bar>
 
@@ -35,8 +37,50 @@
           deletable
           preview-size="80px"
           multiple
+          accept="image/*"
         />
-        <div class="upload-tip">最多9张，单张不超过5MB（自动压缩为多尺寸）</div>
+        <div class="upload-tip">图片最多9张，单张不超过5MB（自动压缩为多尺寸）</div>
+      </div>
+
+      <!-- 视频上传（独立区域，限1个，50MB） -->
+      <div class="upload-section">
+        <div class="video-label">
+          视频 <span class="tags-hint">（选填，最多1个，50MB以内）</span>
+        </div>
+        <van-uploader
+          v-model="videoList"
+          :max-count="1"
+          :max-size="50 * 1024 * 1024"
+          :before-read="beforeVideoRead"
+          :after-read="afterVideoRead"
+          upload-icon="video-o"
+          deletable
+          preview-size="120px"
+          accept="video/mp4,video/webm"
+        >
+          <template #preview-cover="{ item }">
+            <div class="video-preview-cover">
+              <video
+                v-if="item.url || item.serverUrl"
+                :src="item.url || item.serverUrl"
+                preload="metadata"
+                muted
+                class="cover-video"
+              />
+              <div v-else class="cover-placeholder">
+                <van-icon name="video-o" size="28" color="#c8c9cc" />
+              </div>
+              <van-icon
+                v-if="item.status === 'uploading'"
+                name="loading"
+                size="20"
+                color="#fff"
+                class="cover-loading"
+              />
+            </div>
+          </template>
+        </van-uploader>
+        <div class="upload-tip">支持 mp4 / webm，单个不超过50MB</div>
       </div>
 
       <!-- 标签选择 -->
@@ -88,17 +132,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { createPost, getPostDetail, updatePost, getTags } from '@/api/post'
-import { uploadImages } from '@/api/upload'
+import { uploadImages, uploadVideo } from '@/api/upload'
 import { compressImage } from '@/utils/compress'
 
 const router = useRouter()
 const route = useRoute()
 const content = ref('')
 const fileList = ref([])
+const videoList = ref([])
 const fieldRef = ref(null)
 const uploading = ref(false)
 const selectedTags = ref([])
@@ -108,10 +153,14 @@ const existingTags = ref([])
 const isEdit = computed(() => !!route.query.edit)
 const postId = computed(() => Number(route.query.edit))
 
-const canPublish = computed(() => content.value.trim() || fileList.value.length > 0)
+const canPublish = computed(
+  () => content.value.trim() || fileList.value.length > 0 || videoList.value.length > 0
+)
+
+let focusTimer = null
 
 onMounted(async () => {
-  setTimeout(() => {
+  focusTimer = setTimeout(() => {
     fieldRef.value?.focus()
   }, 300)
 
@@ -119,7 +168,9 @@ onMounted(async () => {
   try {
     const tags = await getTags()
     existingTags.value = tags || []
-  } catch (e) { /* 忽略 */ }
+  } catch (e) {
+    /* 忽略 */
+  }
 
   // 编辑模式：加载旧内容
   if (isEdit.value) {
@@ -128,6 +179,9 @@ onMounted(async () => {
       content.value = res.content || ''
       const imgs = res.images || []
       fileList.value = imgs.map((url) => ({ url, status: 'done', serverUrl: url, isImage: true }))
+      // 加载已有视频
+      const vids = res.videos || []
+      videoList.value = vids.map((url) => ({ url, status: 'done', serverUrl: url, isVideo: true }))
       selectedTags.value = res.tags || []
     } catch (e) {
       showToast({ type: 'fail', message: '加载失败' })
@@ -192,13 +246,48 @@ async function afterRead(file) {
   }
 }
 
+// 视频校验：类型 + 大小
+function beforeVideoRead(file) {
+  const allowedTypes = ['video/mp4', 'video/webm']
+  if (!allowedTypes.includes(file.type)) {
+    showToast({ type: 'fail', message: '仅支持 mp4 / webm 格式' })
+    return false
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    showToast({ type: 'fail', message: '视频不能超过50MB' })
+    return false
+  }
+  return true
+}
+
+// 视频上传：不压缩，直接上传原文件
+async function afterVideoRead(file) {
+  file.status = 'uploading'
+  try {
+    const res = await uploadVideo(file.file)
+    if (res.url) {
+      file.serverUrl = res.url
+      file.url = res.url
+      file.status = 'done'
+    } else {
+      file.status = 'failed'
+      showToast({ type: 'fail', message: '视频上传失败' })
+    }
+  } catch (e) {
+    file.status = 'failed'
+    showToast({ type: 'fail', message: '视频上传失败' })
+  }
+}
+
 function handleCancel() {
-  if (content.value.trim() || fileList.value.length > 0) {
+  if (content.value.trim() || fileList.value.length > 0 || videoList.value.length > 0) {
     showConfirmDialog({
       message: '确定放弃吗？'
-    }).then(() => {
-      router.back()
-    }).catch(() => {})
+    })
+      .then(() => {
+        router.back()
+      })
+      .catch(() => {})
   } else {
     router.back()
   }
@@ -206,6 +295,12 @@ function handleCancel() {
 
 async function handlePublish() {
   if (!canPublish.value || uploading.value) return
+  // 拦截未上传完成的视频
+  const uploadingVideo = videoList.value.find((v) => v.status === 'uploading')
+  if (uploadingVideo) {
+    showToast({ type: 'warning', message: '视频上传中，请稍候' })
+    return
+  }
   uploading.value = true
   try {
     // 如果输入框有未添加的标签，自动加入
@@ -217,10 +312,16 @@ async function handlePublish() {
       .filter((item) => item.status === 'done' && item.serverUrl)
       .map((item) => item.serverUrl)
 
+    // 收集已上传的视频 URL
+    const videos = videoList.value
+      .filter((item) => item.status === 'done' && item.serverUrl)
+      .map((item) => item.serverUrl)
+
     const payload = {
       content: content.value,
       images,
-      tags: selectedTags.value,
+      videos,
+      tags: selectedTags.value
     }
 
     if (isEdit.value) {
@@ -246,7 +347,7 @@ async function handlePublish() {
 }
 
 .publish-btn {
-  color: #07C160;
+  color: #07c160;
   font-size: 15px;
   font-weight: 500;
 }
@@ -267,6 +368,44 @@ async function handlePublish() {
   font-size: 12px;
   color: #999;
   margin-top: 8px;
+}
+
+.video-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.video-preview-cover {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cover-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f8fa;
+}
+
+.cover-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .tags-section {

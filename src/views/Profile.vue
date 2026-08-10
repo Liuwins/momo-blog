@@ -11,7 +11,14 @@
             <van-icon name="photograph" color="#fff" size="16" />
           </div>
         </div>
-        <van-image v-else round width="64" height="64" :src="profile.avatar" class="profile-avatar" />
+        <van-image
+          v-else
+          round
+          width="64"
+          height="64"
+          :src="profile.avatar"
+          class="profile-avatar"
+        />
         <div class="profile-nickname">{{ profile.nickname }}</div>
         <div class="profile-signature">{{ profile.signature || '这个人很懒，什么都没写' }}</div>
       </div>
@@ -50,12 +57,7 @@
           finished-text="没有更多了"
           @load="onLoad"
         >
-          <PostCard
-            v-for="item in posts"
-            :key="item.id"
-            :post="item"
-            @comment="handleComment"
-          />
+          <PostCard v-for="item in posts" :key="item.id" :post="item" @comment="handleComment" />
           <van-empty v-if="posts.length === 0 && !loading" description="暂无动态" />
         </van-list>
       </van-pull-refresh>
@@ -112,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
@@ -141,6 +143,11 @@ const finished = ref(false)
 const refreshing = ref(false)
 const postPage = ref(1)
 
+// 竞态保护：每次加载递增版本号，回调时校验版本是否匹配
+let loadVersion = 0
+// 防止 loadProfile 和 van-list 的 onLoad 重复触发首屏加载
+let profileReady = false
+
 const showEdit = ref(false)
 const editForm = ref({ nickname: '', signature: '', avatar: '' })
 const avatarFile = ref([])
@@ -153,12 +160,34 @@ onMounted(async () => {
   await loadProfile()
 })
 
+// 路由参数变化时重新加载（/profile/1 -> /profile/2）
+watch(
+  () => route.params.id,
+  (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      resetAndLoad()
+    }
+  }
+)
+
+function resetAndLoad() {
+  posts.value = []
+  postPage.value = 1
+  finished.value = false
+  loading.value = false
+  profileReady = false
+  loadProfile()
+}
+
 async function loadProfile() {
+  const currentVersion = ++loadVersion
   try {
     let userId = route.params.id
     // 刷新后 userInfo 为 null，且路由没有 id 时，用 /users/me 拿当前用户
     if (!userId && !userStore.userInfo) {
       const me = await getMe()
+      // 竞态校验：如果期间又切换了用户，放弃本次结果
+      if (currentVersion !== loadVersion) return
       userStore.setUserInfo(me)
       userId = me.id
     }
@@ -170,6 +199,8 @@ async function loadProfile() {
       return
     }
     const res = await getUserInfo(userId)
+    // 竞态校验
+    if (currentVersion !== loadVersion) return
     profile.value = res.user || res
     if (!profile.value || !profile.value.id) {
       showToast({ type: 'fail', message: '加载失败' })
@@ -180,21 +211,26 @@ async function loadProfile() {
       signature: profile.value.signature,
       avatar: profile.value.avatar || ''
     }
-    // profile 就绪后触发文章列表加载（van-list 挂载时 id 还是 0 被跳过）
-    if (posts.value.length === 0 && !finished.value) {
-      await onLoad()
+    // profile 就绪，允许 onLoad 加载文章列表
+    profileReady = true
+    // 手动触发首屏加载（van-list 挂载时 profile.id 还是 0 被跳过）
+    if (posts.value.length === 0 && !finished.value && !loading.value) {
+      onLoad()
     }
   } catch (e) {
+    if (currentVersion !== loadVersion) return
     showToast({ type: 'fail', message: '加载失败' })
   }
 }
 
 async function onLoad() {
   // 等 profile 加载完成（van-list 挂载时 profile.id 还是 0）
-  if (!profile.value.id) {
+  if (!profileReady || !profile.value.id) {
     loading.value = false
     return
   }
+  // 防止与 loadProfile 的手动触发重复
+  if (loading.value) return
   loading.value = true
   try {
     const res = await getUserPosts(profile.value.id, {
@@ -210,8 +246,8 @@ async function onLoad() {
       user: {
         id: p.userId,
         nickname: p.nickname,
-        avatar: p.avatar,
-      },
+        avatar: p.avatar
+      }
     }))
     posts.value.push(...items)
     postPage.value++
@@ -278,8 +314,7 @@ async function handleEdit() {
   }
 }
 
-function handleComment(_post) {
-}
+function handleComment(_post) {}
 </script>
 
 <style scoped>
@@ -295,7 +330,7 @@ function handleComment(_post) {
 
 .profile-bg {
   height: 120px;
-  background: linear-gradient(135deg, #07C160 0%, #06AD56 100%);
+  background: linear-gradient(135deg, #07c160 0%, #06ad56 100%);
 }
 
 .profile-info {

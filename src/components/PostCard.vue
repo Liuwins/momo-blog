@@ -29,25 +29,18 @@
         <MarkdownView v-if="isMarkdown" :content="post.content" />
         <template v-else>{{ post.content }}</template>
       </div>
-      <div
-        v-if="showFullBtn"
-        class="full-btn"
-        @click="contentCollapsed = !contentCollapsed"
-      >
+      <div v-if="showFullBtn" class="full-btn" @click="contentCollapsed = !contentCollapsed">
         {{ contentCollapsed ? '全文' : '收起' }}
       </div>
     </div>
 
     <ImageGrid :images="post.images" class="post-images" />
 
+    <VideoGrid v-if="post.videos && post.videos.length" :videos="post.videos" class="post-images" />
+
     <!-- 标签展示 -->
     <div v-if="post.tags && post.tags.length" class="post-tags">
-      <span
-        v-for="tag in post.tags"
-        :key="tag"
-        class="tag-chip"
-        @click="emit('tag-click', tag)"
-      >
+      <span v-for="tag in post.tags" :key="tag" class="tag-chip" @click="emit('tag-click', tag)">
         #{{ tag }}
       </span>
     </div>
@@ -69,13 +62,16 @@
     <div v-if="post.likeUsers && post.likeUsers.length > 0" class="like-users">
       <van-icon name="like" color="#ee0a24" size="12" />
       <span class="like-users-text">
-        {{ post.likeUsers.slice(0, 3).map(u => u.nickname).join('、') }}
+        {{
+          post.likeUsers
+            .slice(0, 3)
+            .map((u) => u.nickname)
+            .join('、')
+        }}
         <template v-if="post.likeUsers.length > 3">
           等 {{ post.likeUsers.length }} 人赞了
         </template>
-        <template v-else>
-          赞了
-        </template>
+        <template v-else> 赞了 </template>
       </span>
     </div>
 
@@ -89,7 +85,11 @@
       >
         <span class="comment-preview-nickname">{{ comment.nickname || '匿名' }}</span>
         <span v-if="comment.status === 'pending'" class="audit-tag">审核中</span>
-        <span class="comment-preview-content" :class="{ 'audit-blur': comment.status === 'pending' }">: {{ comment.content }}</span>
+        <span
+          class="comment-preview-content"
+          :class="{ 'audit-blur': comment.status === 'pending' }"
+          >: {{ comment.content }}</span
+        >
       </div>
       <div v-if="post.comments.length > 3" class="comment-more" @click="handleComment">
         查看全部 {{ post.comments.length }} 条评论
@@ -101,8 +101,8 @@
       v-model:show="showMenu"
       :actions="actions"
       cancel-text="取消"
-      @select="handleMenuSelect"
       close-on-click-action
+      @select="handleMenuSelect"
     />
   </div>
 </template>
@@ -115,13 +115,15 @@ import { formatRelativeTime } from '@/utils/time'
 import { deletePost } from '@/api/post'
 import MarkdownView from '@/components/MarkdownView.vue'
 import LikeButton from '@/components/LikeButton.vue'
+import ImageGrid from '@/components/ImageGrid.vue'
+import VideoGrid from '@/components/VideoGrid.vue'
 
 const props = defineProps({
   post: { type: Object, required: true },
   currentUserId: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['comment', 'view-all', 'reply', 'delete-comment', 'update:liked', 'update:count', 'deleted', 'tag-click'])
+const emit = defineEmits(['comment', 'update:liked', 'update:count', 'deleted', 'tag-click'])
 const router = useRouter()
 const contentCollapsed = ref(true)
 const showFullBtn = ref(false)
@@ -132,7 +134,8 @@ const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
 const isOwner = computed(() => props.currentUserId && props.post.userId === props.currentUserId)
 
 // 判断是否包含 markdown 语法（避免普通文本误渲染）
-const MD_PATTERN = /(\*\*[^*]+\*\*|\*[^*]+\*|^#{1,4}\s|^>\s|^[-*+]\s|^```|\[[^\]]+\]\([^)]+\)|!\[[^\]]*\]\([^)]+\))/m
+const MD_PATTERN =
+  /(\*\*[^*]+\*\*|\*[^*]+\*|^#{1,4}\s|^>\s|^[-*+]\s|^```|\[[^\]]+\]\([^)]+\)|!\[[^\]]*\]\([^)]+\))/m
 const isMarkdown = computed(() => {
   const c = props.post.content || ''
   return MD_PATTERN.test(c) && c.length < 5000
@@ -157,18 +160,6 @@ function goProfile() {
 
 function handleComment() {
   emit('comment', props.post)
-}
-
-function handleViewAll() {
-  router.push(`/post/${props.post.id}`)
-}
-
-function handleReply(comment) {
-  emit('reply', { post: props.post, comment })
-}
-
-function handleDeleteComment(comment) {
-  emit('delete-comment', { post: props.post, comment })
 }
 
 async function handleMenuSelect(action) {

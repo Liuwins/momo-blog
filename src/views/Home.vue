@@ -19,20 +19,17 @@
           class="sort-tab"
           :class="{ active: sortBy === 'latest' }"
           @click="changeSort('latest')"
-        >最新</span>
-        <span
-          class="sort-tab"
-          :class="{ active: sortBy === 'hot' }"
-          @click="changeSort('hot')"
-        >最热</span>
+          >最新</span
+        >
+        <span class="sort-tab" :class="{ active: sortBy === 'hot' }" @click="changeSort('hot')"
+          >最热</span
+        >
       </div>
       <!-- 标签筛选 -->
       <div v-if="allTags.length" class="tag-filter">
-        <span
-          class="tag-filter-item"
-          :class="{ active: !activeTag }"
-          @click="filterByTag('')"
-        >全部</span>
+        <span class="tag-filter-item" :class="{ active: !activeTag }" @click="filterByTag('')"
+          >全部</span
+        >
         <span
           v-for="tag in allTags"
           :key="tag.name"
@@ -61,8 +58,6 @@
             :post="item"
             :current-user-id="userStore.userInfo?.id || 0"
             @comment="handleComment"
-            @reply="handleReply"
-            @delete-comment="handleDeleteComment"
             @update:liked="updatePostLike(item.id, 'liked', $event)"
             @update:count="updatePostLike(item.id, 'likeCount', $event)"
             @deleted="handleDeleted"
@@ -81,12 +76,7 @@
     </van-pull-refresh>
 
     <!-- 评论弹窗 -->
-    <van-popup
-      v-model:show="showCommentPopup"
-      position="bottom"
-      :style="{ height: '60vh' }"
-      round
-    >
+    <van-popup v-model:show="showCommentPopup" position="bottom" :style="{ height: '60vh' }" round>
       <div class="comment-popup">
         <div class="comment-header">
           <span>评论 ({{ currentComments.length }})</span>
@@ -94,19 +84,21 @@
         </div>
         <div ref="commentBodyRef" class="comment-body">
           <div v-if="currentComments.length === 0" class="comment-empty">暂无评论</div>
-          <div
-            v-for="comment in currentComments"
-            :key="comment.id"
-            class="comment-item"
-          >
+          <div v-for="comment in currentComments" :key="comment.id" class="comment-item">
             <van-image round width="32" height="32" :src="comment.avatar || defaultAvatar" />
             <div class="comment-item-content">
               <div class="comment-item-nickname">
                 {{ comment.nickname || '匿名' }}
                 <span v-if="comment.status === 'pending'" class="audit-tag">审核中</span>
               </div>
-              <!-- 审核中：博主正常看内容（灰色斜体+审核中标签），游客模糊遮罩 -->
-              <div class="comment-item-text" :class="{ 'audit-blur': comment.status === 'pending' && !userStore.isLoggedIn, 'pending': comment.status === 'pending' && userStore.isLoggedIn }">
+              <!-- 审核中：博主正常看内容（灰色斜体+审核中标签），游客显示占位文本 -->
+              <div
+                class="comment-item-text"
+                :class="{
+                  'masked-text': comment.masked,
+                  pending: comment.status === 'pending' && userStore.isLoggedIn
+                }"
+              >
                 <template v-if="comment.replyTo">
                   <span class="reply-tag">回复</span>
                   <span class="reply-nickname">@{{ comment.replyTo.nickname }}</span>
@@ -114,8 +106,21 @@
                 {{ comment.content }}
               </div>
               <div class="comment-item-time">{{ formatRelativeTime(comment.createdAt) }}</div>
-              <!-- 博主操作 -->
-              <div v-if="userStore.isLoggedIn && comment.status === 'pending'" class="comment-actions">
+              <!-- 评论操作：回复 + 删除 -->
+              <div class="comment-item-actions">
+                <span class="action-btn reply" @click="handleReply(comment)">回复</span>
+                <span
+                  v-if="canDeleteComment(comment)"
+                  class="action-btn delete"
+                  @click="handleDeleteComment(comment)"
+                  >删除</span
+                >
+              </div>
+              <!-- 博主审核操作 -->
+              <div
+                v-if="userStore.isLoggedIn && comment.status === 'pending'"
+                class="comment-actions"
+              >
                 <span class="action-btn approve" @click="handleApproveComment(comment)">通过</span>
                 <span class="action-btn reject" @click="handleRejectComment(comment)">拒绝</span>
               </div>
@@ -129,11 +134,7 @@
           </div>
           <!-- 未登录时输入昵称 -->
           <div v-if="!userStore.isLoggedIn" class="nickname-input">
-            <van-field
-              v-model="commentNickname"
-              placeholder="输入你的昵称"
-              maxlength="20"
-            />
+            <van-field v-model="commentNickname" placeholder="输入你的昵称" maxlength="20" />
           </div>
           <van-field
             v-model="commentText"
@@ -144,7 +145,12 @@
               <van-button
                 size="small"
                 type="primary"
-                :disabled="!commentText.trim() || (!userStore.isLoggedIn && !commentNickname.trim())"
+                :disabled="
+                  !commentText.trim() ||
+                  submitting ||
+                  (!userStore.isLoggedIn && !commentNickname.trim())
+                "
+                :loading="submitting"
                 @click="submitComment"
               >
                 发送
@@ -158,11 +164,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { showToast } from 'vant'
-import { getPosts, getTags, getComments, createComment, deleteComment, toggleLike, getLikeStatus, approveComment, rejectComment } from '@/api/post'
+import { showToast, showConfirmDialog } from 'vant'
+import {
+  getPosts,
+  getTags,
+  getComments,
+  createComment,
+  deleteComment,
+  toggleLike,
+  getLikeStatus,
+  approveComment,
+  rejectComment
+} from '@/api/post'
 import { getVisitorId, getVisitorNickname, setVisitorNickname } from '@/utils/visitor'
 import { formatRelativeTime } from '@/utils/time'
 
@@ -188,6 +204,7 @@ const currentPost = ref(null)
 const currentComments = ref([])
 const replyTo = ref(null)
 const commentBodyRef = ref(null)
+const submitting = ref(false)
 const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
 
 // 搜索防抖
@@ -207,18 +224,14 @@ function onSearch() {
 async function onLoad() {
   loading.value = true
   try {
-    const params = { page: page.value, pageSize: pageSize }
+    const params = { page: page.value, pageSize: pageSize, sortBy: sortBy.value }
     if (keyword.value.trim()) params.keyword = keyword.value.trim()
     if (activeTag.value) params.tag = activeTag.value
     const res = await getPosts(params)
     if (res.list.length < pageSize) {
       finished.value = true
     }
-    let newItems = res.list
-    if (sortBy.value === 'hot') {
-      newItems = [...newItems].sort((a, b) => b.likeCount - a.likeCount)
-    }
-    list.value.push(...newItems)
+    list.value.push(...res.list)
     page.value++
   } catch (e) {
     error.value = true
@@ -232,7 +245,9 @@ async function onLoad() {
 async function loadTags() {
   try {
     allTags.value = await getTags()
-  } catch (e) { /* 忽略 */ }
+  } catch (e) {
+    /* 忽略 */
+  }
 }
 
 // 每次进入首页：重置状态，从头加载
@@ -245,6 +260,14 @@ onMounted(() => {
   loadTags()
   // 初始化游客昵称
   commentNickname.value = getVisitorNickname()
+})
+
+// 组件卸载时清理搜索定时器，防止内存泄漏
+onUnmounted(() => {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
 })
 
 async function onRefresh() {
@@ -309,17 +332,14 @@ async function handleComment(post) {
   }
 }
 
-async function handleReply({ post, comment }) {
-  currentPost.value = post
-  replyTo.value = { id: comment.id, nickname: comment.nickname || comment.user?.nickname }
-  showCommentPopup.value = true
-  // 加载评论列表
-  try {
-    const comments = await getComments(post.id)
-    currentComments.value = comments
-  } catch (e) {
-    currentComments.value = []
-  }
+function handleReply(comment) {
+  replyTo.value = { id: comment.id, nickname: comment.nickname || comment.user?.nickname || '匿名' }
+}
+
+function canDeleteComment(comment) {
+  // 博主（已登录）可删除任意评论；评论作者可删除自己的评论
+  if (userStore.isLoggedIn) return true
+  return comment.userId && comment.userId === userStore.userInfo?.id
 }
 
 function clearReply() {
@@ -327,17 +347,37 @@ function clearReply() {
 }
 
 function updatePostLike(postId, field, value) {
-  const post = list.value.find(p => p.id === postId)
+  const post = list.value.find((p) => p.id === postId)
   if (post) post[field] = value
 }
 
-async function handleDeleteComment({ post, comment }) {
+async function handleDeleteComment(comment) {
   try {
-    await deleteComment(comment.id)
-    const list = post.comments || []
-    const idx = list.findIndex(c => c.id === comment.id)
-    if (idx !== -1) list.splice(idx, 1)
-    post.commentCount = list.length
+    await showConfirmDialog({ title: '提示', message: '确定删除这条评论吗？' })
+  } catch {
+    return
+  }
+  try {
+    const ok = await deleteComment(comment.id)
+    if (ok === false) {
+      showToast({ type: 'fail', message: '无权删除' })
+      return
+    }
+    // 同步当前评论弹窗列表
+    const cIdx = currentComments.value.findIndex((c) => c.id === comment.id)
+    if (cIdx !== -1) {
+      currentComments.value.splice(cIdx, 1)
+      if (currentPost.value) currentPost.value.commentCount = currentComments.value.length
+    }
+    // 同步 feed 列表中 post 的评论预览
+    const post = list.value.find((p) => p.id === currentPost.value?.id)
+    if (post && post.comments) {
+      const idx = post.comments.findIndex((c) => c.id === comment.id)
+      if (idx !== -1) {
+        post.comments.splice(idx, 1)
+        post.commentCount = (post.commentCount || 1) - 1
+      }
+    }
     showToast({ type: 'success', message: '已删除' })
   } catch (e) {
     showToast({ type: 'fail', message: '删除失败' })
@@ -346,15 +386,18 @@ async function handleDeleteComment({ post, comment }) {
 
 async function submitComment() {
   if (!commentText.value.trim()) return
+  if (submitting.value) return
   if (!userStore.isLoggedIn && !commentNickname.value.trim()) {
     showToast({ type: 'fail', message: '请输入昵称' })
     return
   }
+  submitting.value = true
   try {
     const payload = {
       postId: currentPost.value.id,
       content: commentText.value,
-      replyTo: replyTo.value ? { id: replyTo.value.id, nickname: replyTo.value.nickname } : null
+      replyToId: replyTo.value ? replyTo.value.id : undefined,
+      replyToNickname: replyTo.value ? replyTo.value.nickname : undefined
     }
     // 未登录时带上昵称和 visitorId
     if (!userStore.isLoggedIn) {
@@ -372,6 +415,8 @@ async function submitComment() {
     showToast({ type: 'success', message: '评论成功，等待审核' })
   } catch (e) {
     showToast({ type: 'fail', message: '评论失败' })
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -434,7 +479,7 @@ async function handleRejectComment(comment) {
 }
 
 .sort-tab.active {
-  color: #07C160;
+  color: #07c160;
   font-weight: 500;
 }
 
@@ -532,11 +577,13 @@ async function handleRejectComment(comment) {
   margin-left: 6px;
 }
 
-.audit-blur {
-  filter: blur(5px);
-  user-select: none;
-  pointer-events: none;
-  color: #999 !important;
+.comment-item-text.masked-text {
+  color: #999;
+  font-style: italic;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .comment-item-text.pending {
@@ -579,13 +626,29 @@ async function handleRejectComment(comment) {
 }
 
 .action-btn.approve {
-  color: #07C160;
+  color: #07c160;
   background: #e8f5e9;
 }
 
 .action-btn.reject {
   color: #ee0a24;
   background: #ffebee;
+}
+
+.comment-item-actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+}
+
+.comment-item-actions .action-btn {
+  color: #576b95;
+  background: transparent;
+  padding: 2px 0;
+}
+
+.comment-item-actions .action-btn.delete {
+  color: #999;
 }
 
 .reply-indicator {
