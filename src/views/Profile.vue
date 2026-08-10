@@ -90,6 +90,9 @@
       </van-pull-refresh>
     </div>
 
+    <!-- 返回顶部 -->
+    <BackToTop />
+
     <van-popup v-model:show="showEdit" position="bottom" round :style="{ height: '60vh' }">
       <div class="edit-popup">
         <div class="edit-header">
@@ -150,6 +153,7 @@ import { getUserInfo, getMe, updateUserInfo, followUser, unfollowUser } from '@/
 import { getUserPosts } from '@/api/post'
 import { uploadImages } from '@/api/upload'
 import { compressImage } from '@/utils/compress'
+import BackToTop from '@/components/BackToTop.vue'
 
 const route = useRoute()
 const router = useRouter()

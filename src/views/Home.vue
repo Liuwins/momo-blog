@@ -7,17 +7,20 @@
     </app-nav-bar>
 
     <div class="home-toolbar">
-      <!-- 动态流切换：全部 / 关注（登录用户可见） -->
-      <div v-if="userStore.isLoggedIn" class="feed-tabs">
-        <span class="feed-tab" :class="{ active: feedType === 'all' }" @click="switchFeed('all')"
-          >全部</span
-        >
-        <span
-          class="feed-tab"
-          :class="{ active: feedType === 'following' }"
-          @click="switchFeed('following')"
-          >关注</span
-        >
+      <!-- 天气 + 动态流切换：同一行展示 -->
+      <div class="toolbar-top">
+        <WeatherWidget />
+        <div v-if="userStore.isLoggedIn" class="feed-tabs">
+          <span class="feed-tab" :class="{ active: feedType === 'all' }" @click="switchFeed('all')"
+            >全部</span
+          >
+          <span
+            class="feed-tab"
+            :class="{ active: feedType === 'following' }"
+            @click="switchFeed('following')"
+            >关注</span
+          >
+        </div>
       </div>
       <van-search
         v-model="keyword"
@@ -37,34 +40,19 @@
           >最热</span
         >
       </div>
-      <!-- 本周热门话题榜 -->
-      <div v-if="hotTags.length" class="hot-tags">
-        <span class="hot-label">🔥 热门</span>
-        <div class="hot-tags-scroll">
-          <span
-            v-for="(tag, idx) in hotTags"
-            :key="tag.name"
-            class="hot-tag-item"
-            :class="{ active: activeTag === tag.name }"
-            @click="filterByTag(tag.name)"
-          >
-            <span class="hot-rank" :class="`rank-${idx + 1}`">{{ idx + 1 }}</span>
-            #{{ tag.name }}
-          </span>
-        </div>
-      </div>
-      <!-- 标签筛选 -->
+      <!-- 标签筛选（合并热门与全量，热门带排名编号在前） -->
       <div v-if="allTags.length" class="tag-filter">
         <span class="tag-filter-item" :class="{ active: !activeTag }" @click="filterByTag('')"
           >全部</span
         >
         <span
-          v-for="tag in allTags"
+          v-for="tag in mergedTags"
           :key="tag.name"
           class="tag-filter-item"
-          :class="{ active: activeTag === tag.name }"
+          :class="{ active: activeTag === tag.name, hot: tag.hot }"
           @click="filterByTag(tag.name)"
         >
+          <span v-if="tag.rank" class="hot-rank" :class="`rank-${tag.rank}`">{{ tag.rank }}</span>
           #{{ tag.name }}<sup v-if="tag.count > 1">{{ tag.count }}</sup>
         </span>
       </div>
@@ -93,15 +81,16 @@
           />
         </template>
         <template v-else-if="loading">
-          <div v-for="i in 3" :key="i" class="skeleton-card">
-            <van-skeleton :row="3" :animate="false" />
-          </div>
+          <SkeletonCard v-for="i in 3" :key="i" />
         </template>
         <div v-else class="empty-state">
           <van-empty description="暂无动态" />
         </div>
       </van-list>
     </van-pull-refresh>
+
+    <!-- 返回顶部 -->
+    <BackToTop />
 
     <!-- 评论弹窗 -->
     <van-popup v-model:show="showCommentPopup" position="bottom" :style="{ height: '60vh' }" round>
@@ -192,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { showToast, showConfirmDialog } from 'vant'
@@ -210,6 +199,9 @@ import {
 import { getFollowingPosts } from '@/api/user'
 import { getVisitorId, getVisitorNickname, setVisitorNickname } from '@/utils/visitor'
 import { formatRelativeTime } from '@/utils/time'
+import WeatherWidget from '@/components/WeatherWidget.vue'
+import SkeletonCard from '@/components/SkeletonCard.vue'
+import BackToTop from '@/components/BackToTop.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -228,6 +220,17 @@ const page = ref(1)
 const pageSize = 10
 // 动态流类型：全部 / 关注
 const feedType = ref('all')
+
+// 合并热门与全量标签：热门标签在前（带排名编号），其余按原顺序跟随
+const mergedTags = computed(() => {
+  const hotMap = new Map(hotTags.value.map((t, idx) => [t.name, idx + 1]))
+  return allTags.value.map((t) => ({
+    name: t.name,
+    count: t.count,
+    hot: hotMap.has(t.name),
+    rank: hotMap.get(t.name) || 0
+  }))
+})
 
 const showCommentPopup = ref(false)
 const commentText = ref('')
@@ -511,21 +514,24 @@ async function handleRejectComment(comment) {
   padding: 40px 0;
 }
 
-.skeleton-card {
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
 .home-toolbar {
   background: #fff;
   padding: 8px 12px;
   border-bottom: 1px solid #f0f0f0;
 }
 
+/* 天气 + 动态流切换同一行 */
+.toolbar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0 8px;
+}
+
 .feed-tabs {
   display: flex;
   gap: 20px;
-  padding: 4px 0 8px;
 }
 
 .feed-tab {
@@ -562,50 +568,54 @@ async function handleRejectComment(comment) {
   font-weight: 500;
 }
 
-.hot-tags {
+.tag-filter {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 0;
-  margin-top: 4px;
-}
-
-.hot-label {
-  font-size: 12px;
-  color: #ee0a24;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.hot-tags-scroll {
-  display: flex;
-  gap: 10px;
   overflow-x: auto;
+  padding: 8px 0 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
-.hot-tags-scroll::-webkit-scrollbar {
+.tag-filter::-webkit-scrollbar {
   display: none;
 }
 
-.hot-tag-item {
+.tag-filter-item {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 13px;
   color: #576b95;
   background: #f0f4fa;
-  padding: 3px 10px;
-  border-radius: 12px;
-  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 14px;
   cursor: pointer;
-  flex-shrink: 0;
+  user-select: none;
+  white-space: nowrap;
 }
 
-.hot-tag-item.active {
-  background: #07c160;
+/* 热门标签轻微高亮 */
+.tag-filter-item.hot {
+  background: #fff3e0;
+  color: #ff7a00;
+}
+
+.tag-filter-item.active {
+  background: #576b95;
   color: #fff;
+}
+
+.tag-filter-item.active.hot {
+  background: #ff7a00;
+  color: #fff;
+}
+
+.tag-filter-item sup {
+  font-size: 10px;
+  margin-left: 2px;
 }
 
 .hot-rank {
@@ -633,41 +643,6 @@ async function handleRejectComment(comment) {
 .hot-rank.rank-3 {
   color: #fff;
   background: #ffb300;
-}
-
-.tag-filter {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 8px 0 0;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.tag-filter::-webkit-scrollbar {
-  display: none;
-}
-
-.tag-filter-item {
-  flex-shrink: 0;
-  font-size: 13px;
-  color: #576b95;
-  background: #f0f4fa;
-  padding: 4px 12px;
-  border-radius: 14px;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.tag-filter-item.active {
-  background: #576b95;
-  color: #fff;
-}
-
-.tag-filter-item sup {
-  font-size: 10px;
-  margin-left: 2px;
 }
 
 .nav-icon {

@@ -64,6 +64,9 @@
       <van-loading />
     </div>
 
+    <!-- 返回顶部 -->
+    <BackToTop />
+
     <div class="detail-input-bar">
       <div v-if="replyTo" class="reply-indicator">
         <span>回复 @{{ replyTo.nickname }}</span>
@@ -114,6 +117,7 @@ import {
 import { getVisitorId, getVisitorNickname, setVisitorNickname } from '@/utils/visitor'
 import { addHistory } from '@/utils/storage'
 import { formatRelativeTime } from '@/utils/time'
+import BackToTop from '@/components/BackToTop.vue'
 
 const route = useRoute()
 const router = useRouter()

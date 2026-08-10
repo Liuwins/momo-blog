@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppNavBar: typeof import('./src/components/AppNavBar.vue')['default']
+    BackToTop: typeof import('./src/components/BackToTop.vue')['default']
     CommentList: typeof import('./src/components/CommentList.vue')['default']
     ImageGrid: typeof import('./src/components/ImageGrid.vue')['default']
     LikeButton: typeof import('./src/components/LikeButton.vue')['default']
@@ -19,6 +20,7 @@ declare module 'vue' {
     PostCard: typeof import('./src/components/PostCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SkeletonCard: typeof import('./src/components/SkeletonCard.vue')['default']
     TabBar: typeof import('./src/components/TabBar.vue')['default']
     VanActionSheet: typeof import('vant/es')['ActionSheet']
     VanButton: typeof import('vant/es')['Button']
@@ -35,7 +37,6 @@ declare module 'vue' {
     VanPopup: typeof import('vant/es')['Popup']
     VanPullRefresh: typeof import('vant/es')['PullRefresh']
     VanSearch: typeof import('vant/es')['Search']
-    VanSkeleton: typeof import('vant/es')['Skeleton']
     VanSwitch: typeof import('vant/es')['Switch']
     VanTab: typeof import('vant/es')['Tab']
     VanTabbar: typeof import('vant/es')['Tabbar']
@@ -44,5 +45,6 @@ declare module 'vue' {
     VanTag: typeof import('vant/es')['Tag']
     VanUploader: typeof import('vant/es')['Uploader']
     VideoGrid: typeof import('./src/components/VideoGrid.vue')['default']
+    WeatherWidget: typeof import('./src/components/WeatherWidget.vue')['default']
   }
 }

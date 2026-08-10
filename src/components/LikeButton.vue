@@ -1,11 +1,15 @@
 <template>
   <div class="like-button" @click="handleClick">
-    <van-icon
-      :name="liked ? 'like' : 'like-o'"
-      :color="liked ? '#ee0a24' : '#333'"
-      size="20"
-      :class="{ 'like-animate': animating }"
-    />
+    <div class="like-icon-wrap">
+      <van-icon
+        :name="liked ? 'like' : 'like-o'"
+        :color="liked ? '#ee0a24' : '#333'"
+        size="20"
+        :class="{ 'like-animate': animating }"
+      />
+      <!-- 心形粒子飞出动画 -->
+      <span v-for="p in particles" :key="p.id" class="heart-particle" :style="p.style">❤</span>
+    </div>
     <span class="like-text" :class="{ active: liked }">{{ label }}</span>
   </div>
 </template>
@@ -29,6 +33,40 @@ const userStore = useUserStore()
 const label = computed(() => (props.count > 0 ? `${props.count}` : '赞'))
 const animating = ref(false)
 const pending = ref(false)
+// 心形粒子集合
+const particles = ref([])
+let particleId = 0
+
+// 触发心形粒子飞出动画
+function spawnHearts() {
+  const count = 6
+  const newOnes = []
+  for (let i = 0; i < count; i++) {
+    const id = ++particleId
+    // 随机角度（-90度上下，扩散到左右两侧）
+    const angle = -90 + (Math.random() * 120 - 60)
+    const distance = 28 + Math.random() * 16
+    const dx = Math.cos((angle * Math.PI) / 180) * distance
+    const dy = Math.sin((angle * Math.PI) / 180) * distance
+    const scale = 0.6 + Math.random() * 0.6
+    const rotate = Math.random() * 60 - 30
+    newOnes.push({
+      id,
+      style: {
+        '--dx': `${dx}px`,
+        '--dy': `${dy}px`,
+        '--scale': scale,
+        '--rotate': `${rotate}deg`,
+        animationDelay: `${i * 30}ms`
+      }
+    })
+  }
+  particles.value.push(...newOnes)
+  // 动画结束后清理
+  setTimeout(() => {
+    particles.value = particles.value.filter((p) => !newOnes.find((n) => n.id === p.id))
+  }, 900)
+}
 
 async function handleClick() {
   // 防抖：请求进行中不重复触发
@@ -47,6 +85,7 @@ async function handleClick() {
     setTimeout(() => {
       animating.value = false
     }, 400)
+    spawnHearts()
   }
 
   try {
@@ -84,6 +123,13 @@ async function handleClick() {
   user-select: none;
 }
 
+.like-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .like-text {
   font-size: 13px;
   color: #666;
@@ -109,6 +155,34 @@ async function handleClick() {
   }
   100% {
     transform: scale(1);
+  }
+}
+
+/* 心形粒子飞出动画 */
+.heart-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 14px;
+  color: #ee0a24;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  animation: heart-fly 0.8s ease-out forwards;
+}
+
+@keyframes heart-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(var(--scale))
+      rotate(var(--rotate));
+    opacity: 0;
   }
 }
 </style>

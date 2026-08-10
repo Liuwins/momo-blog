@@ -7,6 +7,7 @@
         height="40"
         :src="post.user?.avatar || defaultAvatar"
         class="avatar"
+        lazy-load
         @click="goProfile"
       />
       <div class="header-info">
