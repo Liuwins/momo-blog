@@ -2,6 +2,9 @@
   <van-tabbar v-model="active" route>
     <van-tabbar-item icon="home-o" to="/">首页</van-tabbar-item>
     <van-tabbar-item icon="add-o" @click="handlePublish">发布</van-tabbar-item>
+    <van-tabbar-item icon="bell-o" to="/notifications" :badge="unreadCount || ''"
+      >通知</van-tabbar-item
+    >
     <van-tabbar-item icon="user-o" :to="profilePath">我的</van-tabbar-item>
   </van-tabbar>
 </template>
@@ -10,16 +13,21 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useNotificationStore } from '@/stores/notification'
 
 const router = useRouter()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
+
+const unreadCount = computed(() => notificationStore.unreadCount)
 
 const active = computed({
   get() {
     const path = router.currentRoute.value.path
     if (path === '/') return 0
     if (path === '/publish') return 1
-    if (path.startsWith('/profile')) return 2
+    if (path.startsWith('/notifications')) return 2
+    if (path.startsWith('/profile')) return 3
     return 0
   },
   set() {}
@@ -31,12 +39,9 @@ const profilePath = computed(() => {
   return id ? `/profile/${id}` : '/profile'
 })
 
-// 刷新后 userInfo 为 null 时，尝试从 token 恢复用户信息
 onMounted(() => {
-  if (userStore.isLoggedIn && !userStore.userInfo) {
-    // token 里没有用户 id，尝试用当前用户接口获取
-    // 后端没有 /users/me，先用 id=1 兜底会失败，所以这里不主动 fetch
-    // 改为依赖 localStorage 持久化的 userInfo（已在 store 中处理）
+  if (userStore.isLoggedIn) {
+    notificationStore.fetchUnreadCount()
   }
 })
 
