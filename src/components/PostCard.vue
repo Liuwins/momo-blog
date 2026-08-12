@@ -5,9 +5,11 @@
         round
         width="40"
         height="40"
-        :src="post.user?.avatar || defaultAvatar"
+        :src="avatarSrc"
         class="avatar"
+        lazy-load
         @click="goProfile"
+        @error="onAvatarError"
       />
       <div class="header-info">
         <div class="nickname" @click="goProfile">{{ post.user?.nickname || '匿名' }}</div>
@@ -29,28 +31,24 @@
         <MarkdownView v-if="isMarkdown" :content="post.content" />
         <template v-else>{{ post.content }}</template>
       </div>
-      <div
-        v-if="showFullBtn"
-        class="full-btn"
-        @click="contentCollapsed = !contentCollapsed"
-      >
+      <div v-if="showFullBtn" class="full-btn" @click="contentCollapsed = !contentCollapsed">
         {{ contentCollapsed ? '全文' : '收起' }}
       </div>
     </div>
 
     <ImageGrid :images="post.images" class="post-images" />
 
+    <VideoGrid v-if="post.videos && post.videos.length" :videos="post.videos" class="post-images" />
+
     <!-- 标签展示 -->
     <div v-if="post.tags && post.tags.length" class="post-tags">
-      <span
-        v-for="tag in post.tags"
-        :key="tag"
-        class="tag-chip"
-        @click="emit('tag-click', tag)"
-      >
+      <span v-for="tag in post.tags" :key="tag" class="tag-chip" @click="emit('tag-click', tag)">
         #{{ tag }}
       </span>
     </div>
+
+    <!-- 文章配乐 -->
+    <MusicPlayer v-if="post.music" :src="post.music" class="post-music" />
 
     <div class="post-actions">
       <LikeButton
@@ -69,13 +67,16 @@
     <div v-if="post.likeUsers && post.likeUsers.length > 0" class="like-users">
       <van-icon name="like" color="#ee0a24" size="12" />
       <span class="like-users-text">
-        {{ post.likeUsers.slice(0, 3).map(u => u.nickname).join('、') }}
+        {{
+          post.likeUsers
+            .slice(0, 3)
+            .map((u) => u.nickname)
+            .join('、')
+        }}
         <template v-if="post.likeUsers.length > 3">
           等 {{ post.likeUsers.length }} 人赞了
         </template>
-        <template v-else>
-          赞了
-        </template>
+        <template v-else> 赞了 </template>
       </span>
     </div>
 
@@ -89,7 +90,11 @@
       >
         <span class="comment-preview-nickname">{{ comment.nickname || '匿名' }}</span>
         <span v-if="comment.status === 'pending'" class="audit-tag">审核中</span>
-        <span class="comment-preview-content" :class="{ 'audit-blur': comment.status === 'pending' }">: {{ comment.content }}</span>
+        <span
+          class="comment-preview-content"
+          :class="{ 'audit-blur': comment.status === 'pending' }"
+          >: {{ comment.content }}</span
+        >
       </div>
       <div v-if="post.comments.length > 3" class="comment-more" @click="handleComment">
         查看全部 {{ post.comments.length }} 条评论
@@ -101,8 +106,8 @@
       v-model:show="showMenu"
       :actions="actions"
       cancel-text="取消"
-      @select="handleMenuSelect"
       close-on-click-action
+      @select="handleMenuSelect"
     />
   </div>
 </template>
@@ -110,18 +115,22 @@
 <script setup>
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast, showConfirmDialog } from 'vant'
+import { showConfirmDialog } from 'vant'
+import { toast } from '@/utils/toast'
 import { formatRelativeTime } from '@/utils/time'
 import { deletePost } from '@/api/post'
 import MarkdownView from '@/components/MarkdownView.vue'
 import LikeButton from '@/components/LikeButton.vue'
+import ImageGrid from '@/components/ImageGrid.vue'
+import VideoGrid from '@/components/VideoGrid.vue'
+import MusicPlayer from '@/components/MusicPlayer.vue'
 
 const props = defineProps({
   post: { type: Object, required: true },
   currentUserId: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['comment', 'view-all', 'reply', 'delete-comment', 'update:liked', 'update:count', 'deleted', 'tag-click'])
+const emit = defineEmits(['comment', 'update:liked', 'update:count', 'deleted', 'tag-click'])
 const router = useRouter()
 const contentCollapsed = ref(true)
 const showFullBtn = ref(false)
@@ -131,8 +140,19 @@ const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=visitor'
 
 const isOwner = computed(() => props.currentUserId && props.post.userId === props.currentUserId)
 
+// 头像加载失败兜底：error 时切换为默认头像
+const avatarError = ref(false)
+const avatarSrc = computed(() => {
+  if (avatarError.value) return defaultAvatar
+  return props.post.user?.avatar || defaultAvatar
+})
+function onAvatarError() {
+  avatarError.value = true
+}
+
 // 判断是否包含 markdown 语法（避免普通文本误渲染）
-const MD_PATTERN = /(\*\*[^*]+\*\*|\*[^*]+\*|^#{1,4}\s|^>\s|^[-*+]\s|^```|\[[^\]]+\]\([^)]+\)|!\[[^\]]*\]\([^)]+\))/m
+const MD_PATTERN =
+  /(\*\*[^*]+\*\*|\*[^*]+\*|^#{1,4}\s|^>\s|^[-*+]\s|^```|\[[^\]]+\]\([^)]+\)|!\[[^\]]*\]\([^)]+\))/m
 const isMarkdown = computed(() => {
   const c = props.post.content || ''
   return MD_PATTERN.test(c) && c.length < 5000
@@ -159,18 +179,6 @@ function handleComment() {
   emit('comment', props.post)
 }
 
-function handleViewAll() {
-  router.push(`/post/${props.post.id}`)
-}
-
-function handleReply(comment) {
-  emit('reply', { post: props.post, comment })
-}
-
-function handleDeleteComment(comment) {
-  emit('delete-comment', { post: props.post, comment })
-}
-
 async function handleMenuSelect(action) {
   if (action.key === 'edit') {
     router.push({ path: '/publish', query: { edit: props.post.id } })
@@ -181,11 +189,11 @@ async function handleMenuSelect(action) {
         message: '删除后不可恢复'
       })
       await deletePost(props.post.id)
-      showToast({ type: 'success', message: '已删除' })
+      toast.success('已删除')
       emit('deleted', props.post.id)
     } catch (e) {
       if (e !== 'cancel') {
-        showToast({ type: 'fail', message: '删除失败' })
+        toast.fail('删除失败')
       }
     }
   }
@@ -194,9 +202,9 @@ async function handleMenuSelect(action) {
 
 <style scoped>
 .post-card {
-  background: #fff;
+  background: var(--bg-card);
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .post-header {
@@ -218,14 +226,14 @@ async function handleMenuSelect(action) {
 .nickname {
   font-size: 15px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.4;
   cursor: pointer;
 }
 
 .time {
   font-size: 12px;
-  color: #999;
+  color: var(--text-light);
   margin-top: 2px;
 }
 
@@ -237,7 +245,7 @@ async function handleMenuSelect(action) {
 }
 
 .more-btn:active {
-  background: #f5f5f5;
+  background: var(--bg-page);
 }
 
 .post-content {
@@ -247,7 +255,7 @@ async function handleMenuSelect(action) {
 .content-text {
   font-size: 15px;
   line-height: 1.6;
-  color: #333;
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -259,7 +267,7 @@ async function handleMenuSelect(action) {
 }
 
 .full-btn {
-  color: #576b95;
+  color: var(--text-link);
   font-size: 14px;
   margin-top: 4px;
   cursor: pointer;
@@ -279,8 +287,8 @@ async function handleMenuSelect(action) {
 .tag-chip {
   display: inline-block;
   font-size: 13px;
-  color: #576b95;
-  background: #f0f4fa;
+  color: var(--text-link);
+  background: var(--bg-tag);
   padding: 2px 10px;
   border-radius: 12px;
   cursor: pointer;
@@ -291,12 +299,16 @@ async function handleMenuSelect(action) {
   background: #dfe7f5;
 }
 
+.post-music {
+  margin-bottom: 8px;
+}
+
 .post-actions {
   display: flex;
   align-items: center;
   gap: 16px;
   padding-top: 8px;
-  border-top: 1px solid #f5f5f5;
+  border-top: 1px solid var(--border-light);
 }
 
 .action-item {
@@ -311,7 +323,11 @@ async function handleMenuSelect(action) {
 
 .action-text {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
+}
+
+.action-text.active {
+  color: #ffb300;
 }
 
 .like-users {
@@ -321,7 +337,7 @@ async function handleMenuSelect(action) {
   margin-top: 8px;
   padding: 4px 0;
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .like-users .van-icon {
@@ -330,20 +346,20 @@ async function handleMenuSelect(action) {
 
 .like-users-text {
   flex: 1;
-  color: #576b95;
+  color: var(--text-link);
 }
 
 .comment-preview {
   margin-top: 8px;
   padding: 8px 12px;
-  background: #f5f5f5;
+  background: var(--bg-page);
   border-radius: 6px;
 }
 
 .comment-preview-item {
   font-size: 13px;
   line-height: 1.6;
-  color: #333;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -352,12 +368,12 @@ async function handleMenuSelect(action) {
 }
 
 .comment-preview-nickname {
-  color: #576b95;
+  color: var(--text-link);
   font-weight: 500;
 }
 
 .comment-preview-content {
-  color: #333;
+  color: var(--text-primary);
 }
 
 .audit-tag {
@@ -370,7 +386,7 @@ async function handleMenuSelect(action) {
 }
 
 .comment-more {
-  color: #576b95;
+  color: var(--text-link);
   font-size: 13px;
   margin-top: 6px;
   cursor: pointer;

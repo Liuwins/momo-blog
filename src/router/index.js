@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { showToast } from 'vant'
+import { toast } from '@/utils/toast'
 
 const routes = [
   {
@@ -17,6 +17,12 @@ const routes = [
     path: '/publish',
     name: 'Publish',
     component: () => import(/* webpackPrefetch: true */ '@/views/Publish.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/notifications',
+    name: 'Notifications',
+    component: () => import('@/views/Notifications.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -52,14 +58,14 @@ router.beforeEach((to) => {
     }
   } catch (e) {
     console.error('[Router Guard]', e)
-    showToast({ type: 'fail', message: '导航出错，请重试' })
+    toast.fail('导航出错，请重试')
     return false
   }
 })
 
 router.onError((error) => {
   console.error('[Router Error]', error)
-  showToast({ type: 'fail', message: '页面加载失败，请重试' })
+  toast.fail('页面加载失败，请重试')
 })
 
 export default router

@@ -11,7 +11,13 @@
         :style="itemStyle(index)"
         fit="cover"
         lazy-load
-      />
+      >
+        <template #error>
+          <div class="img-error-slot">
+            <van-icon name="photo-fail" size="32" color="#c8c9cc" />
+          </div>
+        </template>
+      </van-image>
     </div>
   </div>
 </template>
@@ -110,5 +116,14 @@ function handlePreview(index) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.img-error-slot {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page, #f7f8fa);
 }
 </style>

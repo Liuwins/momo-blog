@@ -34,8 +34,9 @@ export function getLikeStatus(postId, visitorId) {
   return request.get(`/posts/${postId}/like-status`, { params })
 }
 
-export function getTags() {
-  return request.get('/posts/tags')
+export function getTags(period) {
+  const params = period ? { period } : {}
+  return request.get('/posts/tags', { params })
 }
 
 // 评论

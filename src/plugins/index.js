@@ -1,12 +1,9 @@
-import { showToast, showConfirmDialog, showSuccessToast, showFailToast } from 'vant'
+import { toast } from '@/utils/toast'
+import { showConfirmDialog } from 'vant'
 import 'vant/es/toast/style'
 import 'vant/es/dialog/style'
 
-export const toast = {
-  success: (message) => showSuccessToast(message),
-  fail: (message) => showFailToast(message),
-  info: (message) => showToast(message),
-}
+export { toast }
 
 export const dialog = {
   confirm: (options) => showConfirmDialog(options),

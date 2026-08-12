@@ -17,12 +17,30 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000,
-    host: '0.0.0.0'
+    port: 5175,
+    strictPort: true,
+    host: '0.0.0.0',
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3009',
+        changeOrigin: true
+      },
+      '/images': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3009',
+        changeOrigin: true
+      },
+      '/socket.io': {
+        target: process.env.VITE_API_TARGET || 'http://localhost:3009',
+        changeOrigin: true,
+        ws: true
+      }
+    }
+  },
+  build: {
+    emptyOutDir: false
   },
   test: {
     environment: 'happy-dom',
-    globals: true,
-    setupFiles: ['./src/test/setup.js']
+    globals: true
   }
 })

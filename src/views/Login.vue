@@ -3,6 +3,7 @@
     <div class="login-header">
       <h1 class="app-title">MomoBlog</h1>
       <p class="app-desc">记录生活，分享美好</p>
+      <p class="login-note">本站为个人空间，仅博主本人可登录，访客可自由浏览内容</p>
     </div>
 
     <van-form class="login-form" @submit="handleLogin">
@@ -27,11 +28,19 @@
             { required: true, message: '请输入密码' },
             { pattern: /^.{6,50}$/, message: '密码至少6位' }
           ]"
+          @keypress.enter="handleLogin"
         />
       </van-cell-group>
 
       <div style="margin: 16px">
-        <van-button round block type="primary" native-type="submit" color="#07C160">
+        <van-button
+          round
+          block
+          type="primary"
+          native-type="submit"
+          color="#07C160"
+          :loading="loading"
+        >
           登录
         </van-button>
       </div>
@@ -42,7 +51,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { showToast } from 'vant'
+import { toast } from '@/utils/toast'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -50,23 +59,34 @@ const route = useRoute()
 const userStore = useUserStore()
 const username = ref('')
 const password = ref('')
+const loading = ref(false)
 
 async function handleLogin() {
+  if (loading.value) return
+  loading.value = true
   try {
     await userStore.loginAction(username.value, password.value)
-    showToast({ type: 'success', message: '登录成功' })
-    router.replace(route.query.redirect || '/')
+    toast.success('登录成功')
+    // 校验 redirect 参数，防止开放重定向攻击
+    const redirect = route.query.redirect
+    const safeRedirect =
+      typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
+        ? redirect
+        : '/'
+    router.replace(safeRedirect)
   } catch (e) {
-    showToast({ type: 'fail', message: e?.message || '账号或密码错误' })
+    toast.fail(e?.message || '账号或密码错误')
+  } finally {
+    loading.value = false
   }
 }
 </script>
 
 <style scoped>
 .login-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 60px 16px 0;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .login-header {
@@ -76,13 +96,20 @@ async function handleLogin() {
 
 .app-title {
   font-size: 28px;
-  color: #07C160;
+  color: var(--theme-color);
   margin-bottom: 8px;
 }
 
 .app-desc {
   font-size: 14px;
-  color: #999;
+  color: var(--text-light);
+}
+
+.login-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-light);
+  opacity: 0.8;
 }
 
 .login-form {

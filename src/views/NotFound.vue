@@ -19,11 +19,11 @@ const router = useRouter()
 
 <style scoped>
 .not-found-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .not-found-content {
@@ -34,20 +34,20 @@ const router = useRouter()
 .not-found-code {
   font-size: 80px;
   font-weight: 700;
-  color: #07C160;
+  color: var(--theme-color);
   line-height: 1;
 }
 
 .not-found-text {
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
   margin-top: 12px;
   font-weight: 500;
 }
 
 .not-found-desc {
   font-size: 14px;
-  color: #999;
+  color: var(--text-light);
   margin-top: 8px;
 }
 
